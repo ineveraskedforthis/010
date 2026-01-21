@@ -1256,31 +1256,55 @@ int main(void)
 	}
 
 
-	/*
-	do
-		local time = love.timer.getTime()
-		print("Loading ice...")
-		local ice = love.image.newImageData("default/ice.png")
-		local ice_age_ice = love.image.newImageData("default/ice-age-ice.png")
-		local get_ice = function(r, g, b)
-			if g == 1.0 and b == 1.0 then
-				local rr = r * 255.0
-				if rr == 210.0 then return 10.0
-				elseif rr == 225.0 then return 25.0
-				elseif rr == 240.0 then return 40.0
-				else return 0.0 end
-			else return 0.0 end
-		end
-		DATA.for_each_tile(function (tile_id)
-			local r, g, b = read_pixel(tile_id, ice)
-			DATA.tile_set_ice(tile_id, get_ice(r, g, b))
-			r, g, b = read_pixel(tile_id, ice)
-			DATA.tile_set_ice_age_ice(tile_id, get_ice(r, g, b))
-		end)
-		print("Ice loaded!")
-		print(love.timer.getTime() - time)
-	end
+	{
+		printf("Loading ice...");
 
+		std::string filename_ice = "./lua/default/ice.png";
+		std::string filename_ice_age_ice = "./lua/default/ice-age-ice.png";
+		uint8_t * ice;
+		uint8_t * ice_age_ice;
+		int width, height, channels;
+
+		ice = stbi_load(
+			filename_ice.c_str(),
+			&width,
+			&height,
+			&channels,
+			4
+		);
+		ice_age_ice = stbi_load(
+			filename_ice_age_ice.c_str(),
+			&width,
+			&height,
+			&channels,
+			4
+		);
+
+		auto get_ice = [](uint8_t r, uint8_t g, uint8_t b) {
+			if (g == 255 && b == 255) {
+				if (r == 210)  return 10.f;
+				else if (r == 225)  return 25.f;
+				else if (r == 240)  return 40.f;
+				else return 0.f;
+			} else return 0.f;
+		};
+
+		state.for_each_tile([&](dcon::tile_id tile) {
+			auto sphere = tile_to_sphere(world_size, tile);
+			auto rect = sphere_to_rect(sphere);
+			auto index = rect_to_image_index(width, height, rect);
+
+			state.tile_set_ice(tile,
+				get_ice(ice[index * 4], ice[index * 4 + 1], ice[index * 4 + 2])
+			);
+			state.tile_set_ice_age_ice(tile,
+				get_ice(ice_age_ice[index * 4], ice_age_ice[index * 4 + 1], ice_age_ice[index * 4 + 2])
+			);
+		});
+		printf("Ice loaded!");
+	}
+
+	/*
 	do
 		local time = love.timer.getTime()
 		print("Loading rocks")
@@ -1425,10 +1449,12 @@ int main(void)
 				"Waterflow (Summer)",
 				"Land",
 				"Heightmap",
-				"Soil organics"
+				"Soil organics",
+				"Ice"
 			};
 
 			static int item_selected_idx = 0;
+			static bool requested_map_update = false;
 			static int loaded_idx = -1;
 			static bool item_highlight = false;
 
@@ -1447,10 +1473,20 @@ int main(void)
 				}
 				ImGui::EndListBox();
 			}
+
+			static bool ice_age = false;
+			if (item_selected_idx == 8) {
+				if (ImGui::Checkbox("Ice age?", &ice_age)) {
+					requested_map_update = true;
+				}
+			}
+
 			ImGui::End();
 
-			if (item_selected_idx != loaded_idx) {
+
+			if (item_selected_idx != loaded_idx || requested_map_update) {
 				loaded_idx = item_selected_idx;
+				requested_map_update = false;
 				if (item_selected_idx == 0) {
 					state.for_each_tile([&](dcon::tile_id tile) {
 						auto plate = state.tile_get_plate_from_plate_tiles(tile);
@@ -1570,6 +1606,24 @@ int main(void)
 						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
 						auto soil_organics = state.tile_get_soil_organics(tile);
 						auto score = (uint8_t)(soil_organics * 255.f);
+						map_mode_data[4 * index + 0] = score;
+						map_mode_data[4 * index + 1] = score;
+						map_mode_data[4 * index + 2] = score;
+						map_mode_data[4 * index + 3] = 255;
+					});
+				} else if (item_selected_idx == 8) {
+					state.for_each_tile([&](dcon::tile_id tile) {
+						auto plate = state.tile_get_plate_from_plate_tiles(tile);
+						auto fst = tile_to_fst(world_size, tile);
+						auto r = state.plate_get_r(plate);
+						auto g = state.plate_get_g(plate);
+						auto b = state.plate_get_b(plate);
+						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+						auto ice = state.tile_get_ice(tile);
+						if (ice_age) {
+							ice = state.tile_get_ice_age_ice(tile);
+						}
+						auto score = (uint8_t)(ice * 6.f);
 						map_mode_data[4 * index + 0] = score;
 						map_mode_data[4 * index + 1] = score;
 						map_mode_data[4 * index + 2] = score;
