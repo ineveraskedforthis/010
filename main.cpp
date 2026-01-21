@@ -999,6 +999,10 @@ int main(void)
 		auto shift_s = face_to_ds[fst.x] * scaler_world;
 		auto shift_t = face_to_dt[fst.x] * scaler_world;
 
+		state.tile_set_x(tile, point.x);
+		state.tile_set_y(tile, point.y);
+		state.tile_set_z(tile, point.z);
+
 		// 00 - forward
 		{
 			auto n = r3_to_tile(world_size, box + shift_s);
@@ -1352,12 +1356,6 @@ int main(void)
 		printf("Rocks loaded!");
 	}
 
-	/*
-	do
-		local time = love.timer.getTime()
-
-		print(love.timer.getTime() - time)
-	end
 
 	lua_getfield(L, LUA_GLOBALSINDEX, "sote");
 	lua_getfield(L, -1, "load_world");
@@ -1367,6 +1365,7 @@ int main(void)
 		exit(1);
 	}
 	lua_pop(L, 1);
+	/*
 	*/
 
 	lua_close(L);   /* Cya, Lua */
@@ -1487,7 +1486,8 @@ int main(void)
 				"Heightmap",
 				"Soil organics",
 				"Ice",
-				"Rocks"
+				"Rocks",
+				"Biomes"
 			};
 
 			static int item_selected_idx = 0;
@@ -1642,6 +1642,19 @@ int main(void)
 						auto r = state.bedrock_get_r(rock);
 						auto g = state.bedrock_get_g(rock);
 						auto b = state.bedrock_get_b(rock);
+						map_mode_data[4 * index + 0] = (uint8_t)(r * 255);
+						map_mode_data[4 * index + 1] = (uint8_t)(g * 255);
+						map_mode_data[4 * index + 2] = (uint8_t)(b * 255);
+						map_mode_data[4 * index + 3] = 255;
+					});
+				} else if (item_selected_idx == 10) {
+					state.for_each_tile([&](dcon::tile_id tile) {
+						auto biome = state.tile_get_biome(tile);
+						auto fst = tile_to_fst(world_size, tile);
+						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+						auto r = state.biome_get_r(biome);
+						auto g = state.biome_get_g(biome);
+						auto b = state.biome_get_b(biome);
 						map_mode_data[4 * index + 0] = (uint8_t)(r * 255);
 						map_mode_data[4 * index + 1] = (uint8_t)(g * 255);
 						map_mode_data[4 * index + 2] = (uint8_t)(b * 255);
