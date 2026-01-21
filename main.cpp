@@ -218,6 +218,7 @@ void error_callback(int error, const char* description)
 
 static int current_move_x = 0;
 static int current_move_y = 0;
+static int desired_zoom_level = 0;
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
@@ -254,6 +255,18 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 			current_move_x += 1;
 		} else if (action == GLFW_RELEASE) {
 			current_move_x -= 1;
+		}
+	}
+
+	if (key == GLFW_KEY_J) {
+		if (action == GLFW_PRESS) {
+			desired_zoom_level = std::max(-1, desired_zoom_level - 1);
+		}
+	}
+
+	if (key == GLFW_KEY_K) {
+		if (action == GLFW_PRESS) {
+			desired_zoom_level  = std::min(1, desired_zoom_level + 1);
 		}
 	}
 }
@@ -465,13 +478,13 @@ int rect_to_image_index(int width, int height, glm::vec2 point) {
 }
 
 float opengl_elevation(float elevation) {
-	return (elevation + 32000.f) / 32000.f;
+	return (elevation + 32000.f * 2.f) / 32000.f / 2.f;
 }
 
 void push_face_vertices(dcon::data_container& state, game::map_state& data, int world_size, glm::vec3 origin, glm::vec3 ds, glm::vec3 dt, uint8_t face, bool fake) {
 	auto& mesh = data.mesh.data;
 
-	int N = 128;
+	int N = 256;
 	if (fake) {
 		N = 64;
 	}
@@ -885,7 +898,6 @@ int main(void)
 	std::uniform_real_distribution<float> uniform{0.0, 1.0};
 	std::normal_distribution<float> normal_d{0.f, 0.1f};
 	std::normal_distribution<float> size_d{1.f, 0.3f};
-
 
 	glm::vec3 camera_position{0.f, 0.f, 2.f};
 
@@ -1423,10 +1435,31 @@ int main(void)
 			update_timer = 0.f;
 		}
 
-		camera_speed *= exp(-dt * 10.f);
+
+		glm::vec3 eye {
+			cosf(camera_position.y) * sinf(camera_position.x),
+			sinf(camera_position.y),
+			cosf(camera_position.y) * cosf(camera_position.x)
+		};
+		eye *=  camera_position.z;
+
+		float target_zoom = 1.5;
+		if (desired_zoom_level == -1) {
+			auto tile = r3_to_tile(world_size, eye);
+			auto elevation = state.tile_get_elevation(tile);
+			auto zoom_adjustment = opengl_elevation(elevation);
+			target_zoom = zoom_adjustment + 0.2f;
+		}
+		if (desired_zoom_level == 1) {
+			target_zoom = 2;
+		}
+
+		camera_speed *= exp(-dt * 60.f * target_zoom);
 		camera_speed += glm::vec2(float(current_move_x), float(current_move_y)) * dt;
 
+		auto zoom_direction = target_zoom - camera_position.z;
 		camera_position.xy += camera_speed;
+		camera_position.z += zoom_direction * dt * 2.f;
 
 		camera_position.y = std::clamp(
 			camera_position.y,
@@ -1669,14 +1702,19 @@ int main(void)
 
 
 		float near_plane = 0.1f;
-		float far_plane = 20.f;
+		float far_plane = 3.f;
+
+		if (desired_zoom_level == -1) {
+			near_plane = 0.1f;
+			far_plane = camera_position.z + 0.1f;
+		}
+		if (desired_zoom_level == 0) {
+			near_plane = 0.1f;
+			float far_plane = 0.6f;
+		}
+
 		glm::mat4 view(1.f);
-		glm::vec3 eye {
-			cosf(camera_position.y) * sinf(camera_position.x),
-			sinf(camera_position.y),
-			cosf(camera_position.y) * cosf(camera_position.x)
-		};
-		eye *=  camera_position.z;
+
 		view = glm::lookAt(
 			eye,
 			{0.f, 0.f, 0.f},
@@ -1702,8 +1740,9 @@ int main(void)
 				glm::pi<float>() / 3.f, (float)(width) / (float)height, frustum_split_near, frustum_split_far
 			);
 
-			// auto visible_world = frustum(projection_shadow_range * view).vertices;
+			auto visible_world = frustum(projection_shadow_range * view).vertices;
 
+			/*
 			std::vector<glm::vec3> visible_world {
 				{-2.f, -2.f, -2.f},
 				{-2.f, -2.f, +2.f},
@@ -1715,6 +1754,7 @@ int main(void)
 				{+2.f, +2.f, +2.f},
 				{-2.f, -2.f, -2.f},
 			};
+			*/
 
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadow_fbo[i]);
 

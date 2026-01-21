@@ -413,6 +413,36 @@ object {
 		tag { scenario }
 	}
 	property{
+		name { technologies_present }
+		type { array{technology_id}{uint8_t} }
+		tag { scenario }
+	}
+	property{
+		name { technologies_researchable }
+		type { array{technology_id}{uint8_t} }
+		tag { scenario }
+	}
+	property{
+		name { potential_activity }
+		type { array{activity_id}{uint8_t} }
+		tag { scenario }
+	}
+	property{
+		name { throughput_boosts }
+		type { array{activity_id}{float} }
+		tag { scenario }
+	}
+	property{
+		name { input_efficiency_boosts }
+		type { array{activity_id}{float} }
+		tag { scenario }
+	}
+	property{
+		name { output_efficiency_boosts }
+		type { array{activity_id}{float} }
+		tag { scenario }
+	}
+	property{
 		name { race }
 		type { race_id }
 		tag { scenario }
@@ -544,7 +574,7 @@ object {
 	}
 }
 object {
-	name { province }
+	name { settlement }
 	storage_type { erasable }
 	size { 20000 }
 	tag {scenario}
@@ -564,238 +594,8 @@ object {
 		tag { scenario }
 	}
 	property{
-		name { is_land }
-		type { bitfield }
-		tag { scenario }
-	}
-	property{
-		name { province_id }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { size }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { hydration }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { movement_cost }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { center }
-		type { tile_id }
-		tag { scenario }
-	}
-	property{
-		name { infrastructure_needed }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { infrastructure }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { infrastructure_investment }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { infrastructure_efficiency }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { technologies_present }
-		type { array{technology_id}{uint8_t} }
-		tag { scenario }
-	}
-	property{
-		name { technologies_researchable }
-		type { array{technology_id}{uint8_t} }
-		tag { scenario }
-	}
-	property{
-		name { buildable_buildings }
-		type { array{building_type_id}{uint8_t} }
-		tag { scenario }
-	}
-	property{
-		name { local_production }
-		type { array{trade_good_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { temp_buffer_0 }
-		type { array{trade_good_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { local_consumption }
-		type { array{trade_good_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { local_demand }
-		type { array{trade_good_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { local_satisfaction }
-		type { array{trade_good_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { temp_buffer_use_0 }
-		type { array{use_case_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { temp_buffer_use_grad }
-		type { array{use_case_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { local_use_satisfaction }
-		type { array{use_case_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { local_use_buffer_demand }
-		type { array{use_case_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { local_use_buffer_supply }
-		type { array{use_case_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { local_use_buffer_cost }
-		type { array{use_case_id}{float} }
-		tag { scenario }
-	}
-	property{
 		name { local_storage }
 		type { array{trade_good_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { local_merchants_demand }
-		type { array{trade_good_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { local_prices }
-		type { array{trade_good_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { local_wealth }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { trade_wealth }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { local_income }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { local_building_upkeep }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { foragers }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { foragers_water }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { foragers_limit }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { forage_efficiency }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { foragers_targets }
-		type { array{uint32_t}{base_types::forage_container} }
-		tag { scenario }
-	}
-	property{
-		name { local_resources }
-		type { array{uint32_t}{base_types::resource_location} }
-		tag { scenario }
-	}
-	property{
-		name { total_resources }
-		type { array{resource_id}{uint32_t} }
-		tag { scenario }
-	}
-	property{
-		name { used_resources }
-		type { array{resource_id}{uint32_t} }
-		tag { scenario }
-	}
-	property{
-		name { mood }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { unit_types }
-		type { array{unit_type_id}{uint8_t} }
-		tag { scenario }
-	}
-	property{
-		name { throughput_boosts }
-		type { array{production_method_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { input_efficiency_boosts }
-		type { array{production_method_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { local_efficiency_boosts }
-		type { array{production_method_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { output_efficiency_boosts }
-		type { array{production_method_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { on_a_river }
-		type { bitfield }
-		tag { scenario }
-	}
-	property{
-		name { on_a_forest }
-		type { bitfield }
 		tag { scenario }
 	}
 }
@@ -957,7 +757,7 @@ object {
 	}
 	property{
 		name { capitol }
-		type { province_id }
+		type { settlement_id }
 		tag { scenario }
 	}
 	property{
@@ -1245,8 +1045,8 @@ relationship {
 	size { 300000 }
 	tag {scenario}
 	link {
-		object { province }
-		name { province }
+		object { settlement }
+		name { settlement }
 		type { many }
 		index_storage{array}
 	}
@@ -1361,29 +1161,12 @@ relationship {
 	}
 }
 relationship {
-	name { character_location }
-	storage_type { erasable }
-	size { 100000 }
-	tag {scenario}
-	link {
-		object { province }
-		name { location }
-		type { many }
-		index_storage{array}
-	}
-	link {
-		object { pop }
-		name { character }
-		type { unique }
-	}
-}
-relationship {
 	name { home }
 	storage_type { erasable }
 	size { 300000 }
 	tag {scenario}
 	link {
-		object { province }
+		object { settlement }
 		name { home }
 		type { many }
 		index_storage{array}
@@ -1400,7 +1183,7 @@ relationship {
 	size { 300000 }
 	tag {scenario}
 	link {
-		object { province }
+		object { settlement }
 		name { location }
 		type { many }
 		index_storage{array}
@@ -1412,31 +1195,14 @@ relationship {
 	}
 }
 relationship {
-	name { outlaw_location }
-	storage_type { erasable }
-	size { 300000 }
-	tag {scenario}
-	link {
-		object { province }
-		name { location }
-		type { many }
-		index_storage{array}
-	}
-	link {
-		object { pop }
-		name { outlaw }
-		type { unique }
-	}
-}
-relationship {
-	name { tile_province_membership }
+	name { settlement_tile }
 	storage_type { erasable }
 	size { 1500000 }
 	tag {scenario}
 	link {
-		object { province }
-		name { province }
-		type { many }
+		object { settlement }
+		name { settlement }
+		type { unique }
 		index_storage{array}
 	}
 	link {
@@ -1446,18 +1212,18 @@ relationship {
 	}
 }
 relationship {
-	name { province_neighborhood }
+	name { settlement_neighborhood }
 	storage_type { erasable }
 	size { 250000 }
 	tag {scenario}
 	link {
-		object { province }
+		object { settlement }
 		name { origin }
 		type { many }
 		index_storage{array}
 	}
 	link {
-		object { province }
+		object { settlement }
 		name { target }
 		type { many }
 		index_storage{array}
@@ -1652,13 +1418,13 @@ relationship {
 	}
 }
 relationship {
-	name { realm_provinces }
+	name { realm_settlements }
 	storage_type { erasable }
 	size { 30000 }
 	tag {scenario}
 	link {
-		object { province }
-		name { province }
+		object { settlement }
+		name { settlement }
 		type { unique }
 	}
 	link {
@@ -2373,7 +2139,7 @@ object {
 	}
 }
 object {
-	name { production_method }
+	name { activity }
 	storage_type { contiguous }
 	size { 250 }
 	tag {scenario}
@@ -2553,17 +2319,17 @@ object {
 	}
 	property{
 		name { throughput_boosts }
-		type { array{production_method_id}{float} }
+		type { array{activity_id}{float} }
 		tag { scenario }
 	}
 	property{
 		name { input_efficiency_boosts }
-		type { array{production_method_id}{float} }
+		type { array{activity_id}{float} }
 		tag { scenario }
 	}
 	property{
 		name { output_efficiency_boosts }
-		type { array{production_method_id}{float} }
+		type { array{activity_id}{float} }
 		tag { scenario }
 	}
 }
@@ -2606,18 +2372,8 @@ object {
 		tag { scenario }
 	}
 	property{
-		name { production_method }
-		type { production_method_id }
-		tag { scenario }
-	}
-	property{
 		name { archetype }
 		type { uint8_t }
-		tag { scenario }
-	}
-	property{
-		name { unlocked_by }
-		type { technology_id }
 		tag { scenario }
 	}
 	property{
@@ -2626,43 +2382,8 @@ object {
 		tag { scenario }
 	}
 	property{
-		name { upkeep }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { required_biome }
-		type { array{uint32_t}{biome_id} }
-		tag { scenario }
-	}
-	property{
-		name { required_resource }
-		type { array{uint32_t}{resource_id} }
-		tag { scenario }
-	}
-	property{
-		name { unique }
-		type { bitfield }
-		tag { scenario }
-	}
-	property{
 		name { movable }
 		type { bitfield }
-		tag { scenario }
-	}
-	property{
-		name { government }
-		type { bitfield }
-		tag { scenario }
-	}
-	property{
-		name { needed_infrastructure }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { spotting }
-		type { float }
 		tag { scenario }
 	}
 }
