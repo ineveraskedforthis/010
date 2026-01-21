@@ -1,5 +1,7 @@
 #version 330 core
 
+const float PI = 3.1415926535;
+
 // shadow things
 uniform sampler2DArray shadow_map;
 uniform mat4 shadow_transform [10];
@@ -152,23 +154,76 @@ void main()
 
 	vec3 color = albedo_color * light + specular(albedo_color, light_direction) * shadow_factor;
 
-	/*
-	int N = 40;
-	vec3 step_to_camera = (camera_position - position) / float(N);
-	vec3 current_position = position + step_to_camera * 0.5;
-	float step_length = length(step_to_camera);
-	float absorbtion = 5;
-	vec3 emission = ambient * absorbtion * 1.5;
-	float absorbtion_exp = exp(-absorbtion * step_length);
+	int N = 64;
 
-	for (int i = 0; (i < N - 1) && (length(current_position) < 0.99f); i++) {
-		color = absorbtion_exp * color + (1 - absorbtion_exp) * emission / absorbtion;
-		if (!in_shadow_texture) {
-			color = color + light_color * exp(-absorbtion * shadow_pos.z) * 0.0003;
+	float step_length = 0.001f;
+	vec3 step_to_camera = (camera_position - position) / length(camera_position - position) * step_length;
+	vec3 current_position = position + step_to_camera * 0.5;
+
+	// float absorbtion = 5;
+	// vec3 emission = ambient * absorbtion * 0.f;
+
+	// color.x = 1.f;
+	// color.y = 1.f;
+	// color.z = 1.f;
+
+	vec3 aqua = vec3(
+		127.0 / 255.0,
+		255.0 / 255.0,
+		192.0 / 255.0
+	);
+	vec3 gold = vec3(
+		250.0 / 255.0,
+		190.0 / 255.0,
+		10.0 / 255.0
+	);
+	vec3 green = vec3(
+		0.5,
+		1,
+		0.5
+	);
+
+	vec3 absorption = aqua;
+	vec3 scattering = aqua;
+	vec3 extinction = absorption + scattering;
+
+	vec3 optical_depth = vec3(0);
+
+	for (int i = 0; i < 64 && length(current_position) < 2.0f; i++) {
+		float density_absorbed = 0.1f;
+		float density_reflected = 0.1f;
+		if (length(current_position) < 1.f) {
+			density_absorbed = 1000.f;
 		}
+
+		/*
+		float absorbtion_exp = exp(-absorbtion * step_length * density);
+
+		color = absorbtion_exp * color + (1 - absorbtion_exp) * emission / absorbtion;
+		if (shadow_factor == 1.f) {
+			color = color + light_color * exp(-absorbtion) * step_length;
+		}
+		*/
+
+		float light_optical_depth = 0.f;
+
+		// optical_depth += extinction * absorption * density * step_length;
+
+		// vec3 absorbtion_coeff = exp(-optical_depth);
+		vec3 absorbed = exp(-density_absorbed * step_length * vec3(0.4, 0.4, 0.1f));
+
+		/*
+		if (density > 0.f) {
+			out_color = vec4(0.f, 0.f, 0.f, 1.f);
+			return;
+		}
+		*/
+
+		color = color * absorbed + (light_color * (shadow_factor + 0.8f) + ambient) * (1.f - absorbed) * density_reflected * 0.0001f;
+
 		current_position = current_position + step_to_camera;
 	}
-	*/
+
 
 	float Kr = 0.299;
 	float Kg = 0.587;

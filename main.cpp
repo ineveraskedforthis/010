@@ -849,7 +849,7 @@ int main(void)
 	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 
 	// illumination settings
-	glm::vec3 light_color = glm::vec3(2.f, 1.9f, 1.5f);
+	glm::vec3 light_color = glm::vec3(3.f, 3.f, 3.f);
 	glm::vec3 ambient = glm::vec3(0.2f, 0.2f, 0.4f);
 	glClearColor(ambient.x, ambient.y, ambient.z, 0.f);
 
@@ -1591,8 +1591,9 @@ int main(void)
 			sinf(camera_position.y),
 			cosf(camera_position.y) * cosf(camera_position.x)
 		};
+		eye *=  camera_position.z;
 		view = glm::lookAt(
-			eye * camera_position.z,
+			eye,
 			{0.f, 0.f, 0.f},
 			{0.f, 1.f, 0.f}
 		);
@@ -1773,6 +1774,7 @@ int main(void)
 		glUniform3fv(ambient_location, 1,  reinterpret_cast<float *>(&ambient));
 
 		glUniform3fv(albedo_location, 1, albedo_world);
+		glUniform3fv(camera_position_location, 1, reinterpret_cast<float *>(&eye));
 
 		glUniform1i(map_data_location, 0);
 
