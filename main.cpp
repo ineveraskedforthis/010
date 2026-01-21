@@ -56,21 +56,13 @@ struct mesh {
 };
 
 struct map_state {
-	std::array<char, WORLD_AREA_TILES> height {};
+	// std::array<char, WORLD_AREA_TILES> height {};
 	mesh mesh {};
 };
-char get_height(map_state& data, int x, int y) {
-	auto c_x = x + WORLD_RADIUS * CHUNK_SIZE;
-	auto c_y = y + WORLD_RADIUS * CHUNK_SIZE;
-	return data.height[c_x * WORLD_SIZE_TILES + c_y];
-}
-void set_height(map_state& data, int x, int y, char value) {
-	auto c_x = x + WORLD_RADIUS * CHUNK_SIZE;
-	auto c_y = y + WORLD_RADIUS * CHUNK_SIZE;
-	data.height[c_x * WORLD_SIZE_TILES + c_y] = value;
-}
+
 struct state {
 	map_state map;
+	map_state sky;
 
 	std::default_random_engine rng {};
 	std::uniform_real_distribution<float> uniform{0.0, 1.0};
@@ -440,10 +432,13 @@ float opengl_elevation(float elevation) {
 	return (elevation + 32000.f) / 32000.f;
 }
 
-void push_face_vertices(dcon::data_container& state, game::map_state& data, int world_size, glm::vec3 origin, glm::vec3 ds, glm::vec3 dt, uint8_t face) {
+void push_face_vertices(dcon::data_container& state, game::map_state& data, int world_size, glm::vec3 origin, glm::vec3 ds, glm::vec3 dt, uint8_t face, bool fake) {
 	auto& mesh = data.mesh.data;
 
-	const int N = 128;
+	int N = 128;
+	if (fake) {
+		N = 64;
+	}
 	const float Nf = (float) N;
 	for (int is = 0; is < N; is++) {
 		for (int it = 0; it < N; it++) {
@@ -479,15 +474,23 @@ void push_face_vertices(dcon::data_container& state, game::map_state& data, int 
 			auto distance = glm::distance(p00, location);
 			assert(distance < 4.f / (float)world_size);
 
-			auto elevation00 = opengl_elevation(state.tile_get_elevation(tile00));
-			auto elevation01 = opengl_elevation(state.tile_get_elevation(tile01));
-			auto elevation10 = opengl_elevation(state.tile_get_elevation(tile10));
-			auto elevation11 = opengl_elevation(state.tile_get_elevation(tile11));
 
-			p00 *= elevation00;
-			p01 *= elevation01;
-			p10 *= elevation10;
-			p11 *= elevation11;
+			if (fake) {
+				p00 *= 1.5f;
+				p01 *= 1.5f;
+				p10 *= 1.5f;
+				p11 *= 1.5f;
+			} else {
+				auto elevation00 = opengl_elevation(state.tile_get_elevation(tile00));
+				auto elevation01 = opengl_elevation(state.tile_get_elevation(tile01));
+				auto elevation10 = opengl_elevation(state.tile_get_elevation(tile10));
+				auto elevation11 = opengl_elevation(state.tile_get_elevation(tile11));
+				p00 *= elevation00;
+				p01 *= elevation01;
+				p10 *= elevation10;
+				p11 *= elevation11;
+			}
+
 
 			auto normal1 = glm::normalize(glm::cross(p01 - p00, p10 - p00));
 
@@ -505,48 +508,49 @@ void push_face_vertices(dcon::data_container& state, game::map_state& data, int 
 
 }
 
-void generate_cube_sphere(dcon::data_container& state,  game::map_state& data, int world_size) {
+
+void generate_cube_sphere(dcon::data_container& state,  game::map_state& data, int world_size, bool fake) {
 	push_face_vertices(
 		state, data, world_size,
 		cubeworld::back::origin,
 		cubeworld::back::ds,
 		cubeworld::back::dt,
-		cubeworld::back::face
+		cubeworld::back::face, fake
 	);
 	push_face_vertices(
 		state, data, world_size,
 		cubeworld::forward::origin,
 		cubeworld::forward::ds,
 		cubeworld::forward::dt,
-		cubeworld::forward::face
+		cubeworld::forward::face, fake
 	);
 	push_face_vertices(
 		state, data, world_size,
 		cubeworld::left::origin,
 		cubeworld::left::ds,
 		cubeworld::left::dt,
-		cubeworld::left::face
+		cubeworld::left::face, fake
 	);
 	push_face_vertices(
 		state, data, world_size,
 		cubeworld::right::origin,
 		cubeworld::right::ds,
 		cubeworld::right::dt,
-		cubeworld::right::face
+		cubeworld::right::face, fake
 	);
 	push_face_vertices(
 		state, data, world_size,
 		cubeworld::top::origin,
 		cubeworld::top::ds,
 		cubeworld::top::dt,
-		cubeworld::top::face
+		cubeworld::top::face, fake
 	);
 	push_face_vertices(
 		state, data, world_size,
 		cubeworld::bottom::origin,
 		cubeworld::bottom::ds,
 		cubeworld::bottom::dt,
-		cubeworld::bottom::face
+		cubeworld::bottom::face, fake
 	);
 
 	auto& mesh = data.mesh.data;
@@ -576,120 +580,6 @@ void generate_cube_sphere(dcon::data_container& state,  game::map_state& data, i
 	data.mesh.vao = vao;
 	data.mesh.vbo = vbo;
 }
-
-void generate_mesh_from_heightmap(game::map_state& data, int chunk_x, int chunk_y) {
-
-	auto chunk_index = (chunk_x + game::WORLD_RADIUS) * game::WORLD_SIZE + (chunk_y + game::WORLD_RADIUS);
-
-
-	auto& mesh = data.mesh.data;
-
-	glm::vec3 up = {0.f, 0.f, 1.f};
-	glm::vec3 n_left = {-1.f, 0.f, 0.f};
-	glm::vec3 n_forward = {0.f, -1.f, 0.f};
-
-	for (int i = 0; i < game::CHUNK_AREA; i++) {
-		int ix = i / game::CHUNK_SIZE;
-		int iy = i - ix * game::CHUNK_SIZE;
-
-		float x = (float)ix + chunk_x * game::CHUNK_SIZE;
-		float y = (float)iy + chunk_y * game::CHUNK_SIZE;
-		float z = game::get_height(data, x, y);
-
-		mesh.push_back({{x, y, z}, up, {}});
-		mesh.push_back({{x + 1.f, y, z}, up, {}});
-		mesh.push_back({{x, y + 1.f, z}, up, {}});
-
-		mesh.push_back({{x, y + 1.f, z}, up, {}});
-		mesh.push_back({{x + 1.f, y, z}, up, {}});
-		mesh.push_back({{x + 1.f, y + 1.f, z}, up, {}});
-
-		auto here = (float)game::get_height(data, x, y);
-		if (x > -game::WORLD_RADIUS * game::CHUNK_SIZE) {
-			auto left = (float) game::get_height(data, x - 1, y);
-			if (left < here) {
-				float z_n = (float)(left);
-
-				mesh.push_back({{x, y, z_n}, n_left, {}});
-				mesh.push_back({{x, y, z}, n_left, {}});
-				mesh.push_back({{x, y + 1.f, z}, n_left, {}});
-
-				mesh.push_back({{x, y, z_n}, n_left, {}});
-				mesh.push_back({{x, y + 1.f, z}, n_left, {}});
-				mesh.push_back({{x, y + 1.f, z_n}, n_left, {}});
-			}
-		}
-
-		if (x + 1 < game::WORLD_RADIUS * game::CHUNK_SIZE) {
-			auto there = (float)game::get_height(data, x + 1, y);
-			if (there < here) {
-				float z_n = (float)(there);
-
-				mesh.push_back({{x + 1.f, y, z}, -n_left, {}});
-				mesh.push_back({{x + 1.f, y, z_n}, -n_left, {}});
-				mesh.push_back({{x + 1.f, y + 1.f, z}, -n_left, {}});
-
-				mesh.push_back({{x + 1.f, y + 1.f, z}, -n_left, {}});
-				mesh.push_back({{x + 1.f, y, z_n}, -n_left, {}});
-				mesh.push_back({{x + 1.f, y + 1.f, z_n}, -n_left, {}});
-			}
-		}
-
-		if (y > -game::WORLD_RADIUS * game::CHUNK_SIZE) {
-			auto there = (float)game::get_height(data, x, y - 1);
-			if (there < here) {
-				float z_n = (float)(there);
-
-
-				mesh.push_back({{x, y, z}, n_forward, {}});
-				mesh.push_back({{x, y, z_n}, n_forward, {}});
-				mesh.push_back({{x + 1.f, y, z}, n_forward, {}});
-
-				mesh.push_back({{x + 1.f, y, z}, n_forward, {}});
-				mesh.push_back({{x, y, z_n}, n_forward, {}});
-				mesh.push_back({{x + 1.f, y, z_n}, n_forward, {}});
-			}
-		}
-
-		if (y + 1 < game::WORLD_RADIUS * game::CHUNK_SIZE) {
-			auto there = (float)game::get_height(data, x, y + 1);
-			if (there < here) {
-				float z_n = (float)(there);
-
-				mesh.push_back({{x, y + 1.f, z_n}, -n_forward, {}});
-				mesh.push_back({{x, y + 1.f, z}, -n_forward, {}});
-				mesh.push_back({{x + 1.f, y + 1.f, z}, -n_forward, {}});
-
-				mesh.push_back({{x, y + 1.f, z_n}, -n_forward, {}});
-				mesh.push_back({{x + 1.f, y + 1.f, z}, -n_forward, {}});
-				mesh.push_back({{x + 1.f, y + 1.f, z_n}, -n_forward, {}});
-			}
-		}
-	}
-
-	GLuint vbo;
-	glGenBuffers(1, &vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, mesh.size() * sizeof(game::vertex), mesh.data(), GL_STATIC_DRAW);
-
-	GLuint vao;
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(game::vertex),  reinterpret_cast<void*>(0));
-
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(game::vertex),  reinterpret_cast<void*>(sizeof(float) * 3));
-
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(game::vertex),  reinterpret_cast<void*>(sizeof(float) * 3 + sizeof(float) * 3));
-
-	data.mesh.vao = vao;
-	data.mesh.vbo = vbo;
-}
-
 
 namespace geometry {
 
@@ -895,6 +785,7 @@ int main(void)
 	GLuint bones_location = glGetUniformLocation(basic_shader, "bones");
 
 	GLuint shadow_layers_location = glGetUniformLocation(basic_shader, "shadow_layers");
+	GLuint sky_flag_location = glGetUniformLocation(basic_shader, "sky_sphere");
 	GLuint shadow_map_location = glGetUniformLocation(basic_shader, "shadow_map");
 	GLuint render_shadow_transform_location = glGetUniformLocation(basic_shader, "shadow_transform");
 
@@ -1356,7 +1247,8 @@ int main(void)
 		);
 	};
 
-	generate_cube_sphere(state, world.map, world_size);
+	generate_cube_sphere(state, world.map, world_size, false);
+	generate_cube_sphere(state, world.sky, world_size, true);
 
 
 	float update_timer = 0.f;
@@ -1756,40 +1648,43 @@ int main(void)
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		glUseProgram(basic_shader);
-
 		glActiveTexture(GL_TEXTURE10);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, shadow_map);
 		glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
-
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, map_mode_texture);
-
 		glm::mat4 model (1.f);
 		glUniformMatrix4fv(model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model));
 		glUniformMatrix4fv(view_location, 1, GL_FALSE, reinterpret_cast<float *>(&view));
 		glUniformMatrix4fv(projection_location, 1, GL_FALSE, reinterpret_cast<float *>(&projection_full_range));
-
 		glUniform3fv(light_direction_location, 1, reinterpret_cast<float *>(&light_direction));
 		glUniform3fv(light_color_location, 1,  reinterpret_cast<float *>(&light_color));
 		glUniform3fv(ambient_location, 1,  reinterpret_cast<float *>(&ambient));
-
 		glUniform3fv(albedo_location, 1, albedo_world);
 		glUniform3fv(camera_position_location, 1, reinterpret_cast<float *>(&eye));
-
 		glUniform1i(map_data_location, 0);
-
 		glUniform1i(shadow_map_location, 10);
 		glUniform1i(shadow_layers_location, shadow_layers);
+		glUniform1i(sky_flag_location, 0);
 		glUniformMatrix4fv(render_shadow_transform_location, shadow_layers, GL_FALSE, reinterpret_cast<float *>(shadow_projections.data()));
-
 		assert_no_errors();
-
 		glBindVertexArray(world.map.mesh.vao);
 		glDrawArrays(
 			GL_TRIANGLES,
 			0,
 			world.map.mesh.data.size()
 		);
+
+
+		glCullFace(GL_FRONT);
+		glUniform1i(sky_flag_location, 1);
+		glBindVertexArray(world.sky.mesh.vao);
+		glDrawArrays(
+			GL_TRIANGLES,
+			0,
+			world.sky.mesh.data.size()
+		);
+
 
 		assert_no_errors();
 

@@ -6,6 +6,7 @@ const float PI = 3.1415926535;
 uniform sampler2DArray shadow_map;
 uniform mat4 shadow_transform [10];
 uniform int shadow_layers;
+uniform int sky_sphere;
 
 // data
 uniform sampler2DArray map_data;
@@ -65,7 +66,13 @@ void main()
 {
 	vec3 data_location = vec3(texcoord.x, texcoord.y, face);
 	vec4 texture_value = texture(map_data, data_location);
+
 	vec3 albedo_color = texture_value.xyz;
+	if (sky_sphere == 1) {
+		albedo_color = ambient;
+		// out_color = vec4(1.f, 0.f, 0.f, 1.f);
+		// return;
+	}
 
 	float elevation = length(position);
 
@@ -82,7 +89,7 @@ void main()
 	float cos_angle = dot(normalize(light_direction), frag_normal);
 	float tan_angle = abs(tan(acos(cos_angle)));
 
-	for (int i = 0; i < shadow_layers; i++) {
+	for (int i = 0; i < shadow_layers && sky_sphere == 0; i++) {
 		shadow_pos = shadow_transform[i] * vec4(position, 1.0);
 		shadow_pos /= shadow_pos.w;
 		shadow_pos = shadow_pos * 0.5 + vec4(0.5);
@@ -101,8 +108,7 @@ void main()
 		}
 	}
 
-	if (in_shadow_texture)
-	{
+	if (in_shadow_texture && sky_sphere == 0) {
 		vec2 sum = vec2(0.0, 0.0);
 		float sum_w = 0.0;
 		const int N = 4;
@@ -153,10 +159,16 @@ void main()
 	light += light_color * diffuse * shadow_factor;
 
 	vec3 color = albedo_color * light + specular(albedo_color, light_direction) * shadow_factor;
+	if (sky_sphere == 1) {
+		color = albedo_color;
+	}
 
 	int N = 64;
 
-	float step_length = 0.001f;
+	float step_length = 0.0001f;
+	if (sky_sphere == 1) {
+		step_length = 0.05;
+	}
 	vec3 step_to_camera = (camera_position - position) / length(camera_position - position) * step_length;
 	vec3 current_position = position + step_to_camera * 0.5;
 
@@ -189,11 +201,18 @@ void main()
 
 	vec3 optical_depth = vec3(0);
 
-	for (int i = 0; i < 64 && length(current_position) < 2.0f; i++) {
-		float density_absorbed = 0.1f;
+	float translucent = 0.f;
+	if (sky_sphere == 1) {
+		translucent = 1.f;
+	}
+
+	for (int i = 0; i < 32 && length(current_position) < 1.6f; i++) {
+		float density_absorbed = 5.f;
 		float density_reflected = 0.1f;
 		if (length(current_position) < 1.f) {
 			density_absorbed = 1000.f;
+		} else {
+			density_absorbed = max(0.f, 1.05f - length(current_position)) * 100.f;
 		}
 
 		/*
@@ -211,7 +230,7 @@ void main()
 
 		// vec3 absorbtion_coeff = exp(-optical_depth);
 		vec3 absorbed = exp(-density_absorbed * step_length * vec3(0.4, 0.4, 0.1f));
-
+		float absorbed_f = exp(-density_absorbed * step_length);
 		/*
 		if (density > 0.f) {
 			out_color = vec4(0.f, 0.f, 0.f, 1.f);
@@ -219,8 +238,8 @@ void main()
 		}
 		*/
 
-		color = color * absorbed + (light_color * (shadow_factor + 0.8f) + ambient) * (1.f - absorbed) * density_reflected * 0.0001f;
-
+		color = color * absorbed + (light_color * (shadow_factor + 0.8f) + ambient) * (1.f - absorbed) * density_reflected * step_length;
+		translucent = translucent * absorbed_f - density_reflected * step_length;
 		current_position = current_position + step_to_camera;
 	}
 
@@ -246,5 +265,5 @@ void main()
 	color = pow(color, vec3(1.0 / 2.2));
 
 
-	out_color = vec4(color, 1.0);
+	out_color = vec4(color, 1.f - translucent);
 }
