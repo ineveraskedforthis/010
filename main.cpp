@@ -29,6 +29,7 @@
 #include "imgui/backends/imgui_impl_opengl3.h"
 #include "data.hpp"
 #include "frustum.hpp"
+#include "unordered_dense.h"
 
 glm::vec3 hsv_to_rgb(float h, float s, float v) {
 	auto c = v * s;
@@ -62,6 +63,11 @@ glm::vec3 rgb_to_hsv(float r, float g, float b) {
 
 	return {h, s, max};
 }
+
+int rgb_to_id(int r, int g, int b) {
+	return r + 256 * g + 256 * 256 * b;
+}
+
 
 namespace game {
 
@@ -442,9 +448,6 @@ glm::vec3 tile_to_sphere(int world_size, dcon::tile_id tile) {
 	return fst_to_sphere(world_size, {face, s, t});
 }
 
-int rgb_to_id(int r, int g, int b) {
-	return 256 * r  + 256 * 256 * g + 256 * 256 * 256 * b;
-}
 
 glm::vec2 sphere_to_rect(glm::vec3 point) {
 	auto d = glm::length(point);
@@ -941,7 +944,7 @@ int main(void)
 
 
 	{
-		std::unordered_map<int32_t, dcon::plate_id> detected_plates{};
+		ankerl::unordered_dense::map<int32_t, dcon::plate_id> detected_plates{};
 
 		std::string filename = "./lua/default/tectonics.png";
 		uint8_t * img;
@@ -1304,22 +1307,55 @@ int main(void)
 		printf("Ice loaded!");
 	}
 
+	{
+		printf("Loading rocks");
+
+		std::string rocks_filename = "./lua/default/rocks.png";
+		uint8_t * rocks;
+		int width, height, channels;
+
+		rocks = stbi_load(
+			rocks_filename.c_str(),
+			&width,
+			&height,
+			&channels,
+			4
+		);
+
+		// build a map for colors
+		ankerl::unordered_dense::map<int32_t, dcon::bedrock_id> color_to_bedrock{};
+
+		state.for_each_bedrock([&](auto bedrock){
+			auto cid = rgb_to_id(
+				state.bedrock_get_r(bedrock) * 255.f,
+				state.bedrock_get_g(bedrock) * 255.f,
+				state.bedrock_get_b(bedrock) * 255.f
+			);
+			color_to_bedrock[cid] = bedrock;
+		});
+
+		state.for_each_tile([&](dcon::tile_id tile) {
+			auto sphere = tile_to_sphere(world_size, tile);
+			auto rect = sphere_to_rect(sphere);
+			auto index = rect_to_image_index(width, height, rect);
+
+			auto cid = rgb_to_id(rocks[4 * index], rocks[4 * index + 1], rocks[4 * index + 2]);
+
+			auto it = color_to_bedrock.find(cid);
+
+			if (it == color_to_bedrock.end()) {
+				state.tile_set_bedrock(tile, dcon::bedrock_id{7});
+			} else {
+				state.tile_set_bedrock(tile, it->second);
+			}
+		});
+		printf("Rocks loaded!");
+	}
+
 	/*
 	do
 		local time = love.timer.getTime()
-		print("Loading rocks")
-		local rocks = love.image.newImageData("default/rocks.png")
-		local color_utils = require "game.color"
-		DATA.for_each_tile(function (tile_id)
-			local r, g, b = read_pixel(tile_id, rocks)
-			local id = color_utils.rgb_to_id(r, g, b)
-			if RAWS_MANAGER.bedrocks_by_color_id[id] ~= nil then
-				DATA.tile_set_bedrock(tile_id, RAWS_MANAGER.bedrocks_by_color_id[id])
-			else
-				DATA.tile_set_bedrock(tile_id, RAWS_MANAGER.bedrocks_by_name['limestone'])
-			end
-		end)
-		print("Rocks loaded!")
+
 		print(love.timer.getTime() - time)
 	end
 
@@ -1450,7 +1486,8 @@ int main(void)
 				"Land",
 				"Heightmap",
 				"Soil organics",
-				"Ice"
+				"Ice",
+				"Rocks"
 			};
 
 			static int item_selected_idx = 0;
@@ -1489,11 +1526,7 @@ int main(void)
 				requested_map_update = false;
 				if (item_selected_idx == 0) {
 					state.for_each_tile([&](dcon::tile_id tile) {
-						auto plate = state.tile_get_plate_from_plate_tiles(tile);
 						auto fst = tile_to_fst(world_size, tile);
-						auto r = state.plate_get_r(plate);
-						auto g = state.plate_get_g(plate);
-						auto b = state.plate_get_b(plate);
 						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
 						map_mode_data[4 * index + 0] = 255;
 						map_mode_data[4 * index + 1] = 255;
@@ -1502,11 +1535,7 @@ int main(void)
 					});
 				} else if (item_selected_idx == 1) {
 					state.for_each_tile([&](dcon::tile_id tile) {
-						auto plate = state.tile_get_plate_from_plate_tiles(tile);
 						auto fst = tile_to_fst(world_size, tile);
-						auto r = state.plate_get_r(plate);
-						auto g = state.plate_get_g(plate);
-						auto b = state.plate_get_b(plate);
 						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
 						if (state.tile_get_is_coast(tile)) {
 							map_mode_data[4 * index + 0] = 0;
@@ -1535,11 +1564,7 @@ int main(void)
 					});
 				} else if (item_selected_idx == 3) {
 					state.for_each_tile([&](dcon::tile_id tile) {
-						auto plate = state.tile_get_plate_from_plate_tiles(tile);
 						auto fst = tile_to_fst(world_size, tile);
-						auto r = state.plate_get_r(plate);
-						auto g = state.plate_get_g(plate);
-						auto b = state.plate_get_b(plate);
 						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
 						auto waterflow = state.tile_get_january_waterflow(tile);
 						map_mode_data[4 * index + 0] = (255 - (uint8_t)(waterflow / 20000.f * 255)) / 10;
@@ -1549,11 +1574,7 @@ int main(void)
 					});
 				} else if (item_selected_idx == 4) {
 					state.for_each_tile([&](dcon::tile_id tile) {
-						auto plate = state.tile_get_plate_from_plate_tiles(tile);
 						auto fst = tile_to_fst(world_size, tile);
-						auto r = state.plate_get_r(plate);
-						auto g = state.plate_get_g(plate);
-						auto b = state.plate_get_b(plate);
 						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
 						auto waterflow = state.tile_get_july_waterflow(tile);
 						map_mode_data[4 * index + 0] = (255 - (uint8_t)(waterflow / 20000.f * 255)) / 10;
@@ -1563,11 +1584,7 @@ int main(void)
 					});
 				} else if (item_selected_idx == 5) {
 					state.for_each_tile([&](dcon::tile_id tile) {
-						auto plate = state.tile_get_plate_from_plate_tiles(tile);
 						auto fst = tile_to_fst(world_size, tile);
-						auto r = state.plate_get_r(plate);
-						auto g = state.plate_get_g(plate);
-						auto b = state.plate_get_b(plate);
 						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
 						if (!state.tile_get_is_land(tile)) {
 							map_mode_data[4 * index + 0] = 0;
@@ -1583,11 +1600,7 @@ int main(void)
 					});
 				} else if (item_selected_idx == 6) {
 					state.for_each_tile([&](dcon::tile_id tile) {
-						auto plate = state.tile_get_plate_from_plate_tiles(tile);
 						auto fst = tile_to_fst(world_size, tile);
-						auto r = state.plate_get_r(plate);
-						auto g = state.plate_get_g(plate);
-						auto b = state.plate_get_b(plate);
 						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
 						auto elevation = state.tile_get_elevation(tile);
 						auto score = (uint8_t)((elevation / 16000.f + 0.5f) * 255.f);
@@ -1598,11 +1611,7 @@ int main(void)
 					});
 				} else if (item_selected_idx == 7) {
 					state.for_each_tile([&](dcon::tile_id tile) {
-						auto plate = state.tile_get_plate_from_plate_tiles(tile);
 						auto fst = tile_to_fst(world_size, tile);
-						auto r = state.plate_get_r(plate);
-						auto g = state.plate_get_g(plate);
-						auto b = state.plate_get_b(plate);
 						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
 						auto soil_organics = state.tile_get_soil_organics(tile);
 						auto score = (uint8_t)(soil_organics * 255.f);
@@ -1613,11 +1622,7 @@ int main(void)
 					});
 				} else if (item_selected_idx == 8) {
 					state.for_each_tile([&](dcon::tile_id tile) {
-						auto plate = state.tile_get_plate_from_plate_tiles(tile);
 						auto fst = tile_to_fst(world_size, tile);
-						auto r = state.plate_get_r(plate);
-						auto g = state.plate_get_g(plate);
-						auto b = state.plate_get_b(plate);
 						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
 						auto ice = state.tile_get_ice(tile);
 						if (ice_age) {
@@ -1627,6 +1632,19 @@ int main(void)
 						map_mode_data[4 * index + 0] = score;
 						map_mode_data[4 * index + 1] = score;
 						map_mode_data[4 * index + 2] = score;
+						map_mode_data[4 * index + 3] = 255;
+					});
+				} else if (item_selected_idx == 9) {
+					state.for_each_tile([&](dcon::tile_id tile) {
+						auto rock = state.tile_get_bedrock(tile);
+						auto fst = tile_to_fst(world_size, tile);
+						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+						auto r = state.bedrock_get_r(rock);
+						auto g = state.bedrock_get_g(rock);
+						auto b = state.bedrock_get_b(rock);
+						map_mode_data[4 * index + 0] = (uint8_t)(r * 255);
+						map_mode_data[4 * index + 1] = (uint8_t)(g * 255);
+						map_mode_data[4 * index + 2] = (uint8_t)(b * 255);
 						map_mode_data[4 * index + 3] = 255;
 					});
 				}
