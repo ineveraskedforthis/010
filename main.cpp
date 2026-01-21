@@ -30,6 +30,39 @@
 #include "data.hpp"
 #include "frustum.hpp"
 
+glm::vec3 hsv_to_rgb(float h, float s, float v) {
+	auto c = v * s;
+	int section = h / 60;
+	auto x = c * (1 - abs(section % 2 - 1));
+	auto m = v - c;
+	if (h < 60) return {c + m, x + m, 0 + m};
+	if (h < 120) return {x + m, c + m, 0 + m};
+	if (h < 180) return {0 + m, c + m, x + m};
+	if (h < 240) return {0 + m, x + m, c + m};
+	if (h < 300) return {x + m, 0 + m, c + m};
+	return {c + m, 0 + m, x + m};
+}
+
+glm::vec3 rgb_to_hsv(float r, float g, float b) {
+	auto max = std::max(r, std::max(g, b));
+	auto min = std::min(r, std::min(g, b));
+
+	auto h = 0;
+	if (max == min) {
+		h = 0;
+	} else if (max == r) {
+		h = fmod((g - b) * 60 / (max - min), 360.f);
+	} else if (max == g) {
+		h = fmod((b - r) * 60 / (max - min) + 120, 360.f);
+	} else if (max == b) {
+		h = fmod((r - g) * 60 / (max - min) + 240, 360.f);
+	}
+	float s = 0.f;
+	if (max != 0) s = 1 - min / max;
+
+	return {h, s, max};
+}
+
 namespace game {
 
 constexpr int CHUNK_SIZE = 32;
@@ -955,6 +988,7 @@ int main(void)
 
 	float scaler_world = 1.f / float(world_size);
 	state.tile_resize_neighbour(4);
+
 	state.for_each_tile([&](dcon::tile_id tile) {
 		auto point = tile_to_sphere(world_size, tile);
 		auto box = sphere_to_box(point);
@@ -1106,8 +1140,7 @@ int main(void)
 			}
 			state.tile_set_elevation(tile, elev);
 		});
-
-		printf("Heightmap loaded!");
+		printf("Heightmap loaded!\n");
 
 		printf("Correcting elevation...");
 		state.for_each_tile([&](dcon::tile_id tile) {
@@ -1120,51 +1153,110 @@ int main(void)
 				state.tile_set_waterlevel(tile, 0);
 			}
 		});
-		printf("Elevation corrected!");
+		printf("Elevation corrected!\n");
 	}
+
+	{
+		printf("Loading soils...");
+
+		std::string filename_depth = "./lua/default/soil-depth.png";
+		std::string filename_organics = "./lua/default/soil-organics.png";
+		std::string filename_minerals = "./lua/default/soil-minerals.png";
+		std::string filename_texture = "./lua/default/soil-texture.png";
+		uint8_t * depth;
+		uint8_t * organics;
+		uint8_t * minerals;
+		uint8_t * texture;
+		int width, height, channels;
+
+		depth = stbi_load(
+			filename_depth.c_str(),
+			&width,
+			&height,
+			&channels,
+			4
+		);
+		organics = stbi_load(
+			filename_organics.c_str(),
+			&width,
+			&height,
+			&channels,
+			4
+		);
+		minerals = stbi_load(
+			filename_minerals.c_str(),
+			&width,
+			&height,
+			&channels,
+			4
+		);
+		texture = stbi_load(
+			filename_texture.c_str(),
+			&width,
+			&height,
+			&channels,
+			4
+		);
+
+		state.for_each_tile([&] (dcon::tile_id tile) {
+
+			auto sphere = tile_to_sphere(world_size, tile);
+			auto rect = sphere_to_rect(sphere);
+			auto index = rect_to_image_index(width, height, rect);
+
+
+			auto depth_r = depth[index * 4 + 0];
+			auto depth_g = depth[index * 4 + 1];
+			auto depth_b = depth[index * 4 + 2];
+
+			auto organics_r = organics[index * 4 + 0];
+			auto organics_g = organics[index * 4 + 1];
+			auto organics_b = organics[index * 4 + 2];
+
+			auto minerals_r = minerals[index * 4 + 0];
+			auto minerals_g = minerals[index * 4 + 1];
+			auto minerals_b = minerals[index * 4 + 2];
+
+			auto texture_r = texture[index * 4 + 0];
+			auto texture_g = texture[index * 4 + 1];
+			auto texture_b = texture[index * 4 + 2];
+
+			float total = (float)texture_r + (float)texture_g + (float)texture_b;
+			if (total == 0) {
+				total = 0.001f;
+			}
+			auto sand = texture_r / total;
+			auto silt = texture_g / total;
+			auto clay = texture_b / total;
+
+			auto depth_hsv = rgb_to_hsv(
+				(float) depth_r / 255.f,
+				(float) depth_g / 255.f,
+				(float) depth_b / 255.f
+			);
+
+			auto actual_depth = depth_hsv.x;
+			auto depth = std::min(actual_depth, 235.f) / 235.f * 10.f;
+
+			state.tile_set_sand(tile, sand * actual_depth);
+			state.tile_set_silt(tile, silt * actual_depth);
+			state.tile_set_clay(tile, clay * actual_depth);
+
+			if (actual_depth == 0) {
+				state.tile_set_soil_minerals(tile, 0);
+				state.tile_set_soil_organics(tile, 0);
+			} else {
+				auto organics = rgb_to_hsv(organics_r, organics_g, organics_b).x;
+				state.tile_set_soil_organics(tile, std::min(organics, 235.f) / 235.f);
+				auto minerals = rgb_to_hsv(minerals_r, minerals_g, minerals_b).x;
+				state.tile_set_soil_minerals(tile, std::min(minerals, 235.f) / 235.f);
+			}
+		});
+		printf("Soils loaded!");
+	}
+
 
 	/*
-	{
-		printf("Loading soils...")
-		local depth = love.image.newImageData("default/soil-depth.png")
-		local organics = love.image.newImageData("default/soil-organics.png")
-		local minerals = love.image.newImageData("default/soil-minerals.png")
-		local texture = love.image.newImageData("default/soil-texture.png")
-		local col_utils = require "game.color"
-		DATA.for_each_tile(function (tile_id)
-			local depth_r, depth_g, depth_b = read_pixel(tile_id, depth)
-			local organics_r, organics_g, organics_b = read_pixel(tile_id, organics)
-			local minerals_r, minerals_g, minerals_b = read_pixel(tile_id, minerals)
-			local texture_r, texture_g, texture_b = read_pixel(tile_id, texture)
-
-			local total = texture_r + texture_g + texture_b
-			if total == 0 then
-				total = 0.001 -- prevent NaNs from division by 0!
-			end
-			local sand = texture_r / total
-			local silt = texture_g / total
-			local clay = texture_b / total
-
-			local hue_depth, _, _ = col_utils.rgb_to_hsv(depth_r, depth_g, depth_b)
-			local depth = math.min(hue_depth, 235.0) / 235.0 * 10.0
-
-			DATA.tile_set_sand(tile_id, sand * depth)
-			DATA.tile_set_silt(tile_id, silt * depth)
-			DATA.tile_set_clay(tile_id, clay * depth)
-			if depth == 0 then
-				DATA.tile_set_soil_minerals(tile_id, 0)
-				DATA.tile_set_soil_organics(tile_id, 0)
-			else
-				local hue_organics, _, _ = col_utils.rgb_to_hsv(organics_r, organics_g, organics_b)
-				DATA.tile_set_soil_organics(tile_id, math.min(hue_organics, 235.0) / 235.0)
-				local hue_minerals, _, _ = col_utils.rgb_to_hsv(minerals_r, minerals_g, minerals_b)
-				DATA.tile_set_soil_minerals(tile_id, math.min(hue_minerals, 235.0) / 235.0)
-			end
-		end)
-		printf("Soils loaded!")
-	}
-
-
 	do
 		local time = love.timer.getTime()
 		print("Loading ice...")
@@ -1332,7 +1424,8 @@ int main(void)
 				"Waterflow (Winter)",
 				"Waterflow (Summer)",
 				"Land",
-				"Heightmap"
+				"Heightmap",
+				"Soil organics"
 			};
 
 			static int item_selected_idx = 0;
@@ -1462,6 +1555,21 @@ int main(void)
 						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
 						auto elevation = state.tile_get_elevation(tile);
 						auto score = (uint8_t)((elevation / 16000.f + 0.5f) * 255.f);
+						map_mode_data[4 * index + 0] = score;
+						map_mode_data[4 * index + 1] = score;
+						map_mode_data[4 * index + 2] = score;
+						map_mode_data[4 * index + 3] = 255;
+					});
+				} else if (item_selected_idx == 7) {
+					state.for_each_tile([&](dcon::tile_id tile) {
+						auto plate = state.tile_get_plate_from_plate_tiles(tile);
+						auto fst = tile_to_fst(world_size, tile);
+						auto r = state.plate_get_r(plate);
+						auto g = state.plate_get_g(plate);
+						auto b = state.plate_get_b(plate);
+						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+						auto soil_organics = state.tile_get_soil_organics(tile);
+						auto score = (uint8_t)(soil_organics * 255.f);
 						map_mode_data[4 * index + 0] = score;
 						map_mode_data[4 * index + 1] = score;
 						map_mode_data[4 * index + 2] = score;
