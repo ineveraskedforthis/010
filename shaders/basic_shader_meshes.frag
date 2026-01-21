@@ -65,7 +65,7 @@ void main()
 	vec4 texture_value = texture(map_data, data_location);
 	vec3 albedo_color = texture_value.xyz;
 
-	// float elevation = length(position);
+	float elevation = length(position);
 
 	// if (texture_value.a <= 0.5) {
 	//     discard;
@@ -152,22 +152,23 @@ void main()
 
 	vec3 color = albedo_color * light + specular(albedo_color, light_direction) * shadow_factor;
 
-
-	vec3 step_to_camera = (camera_position - position) / 10;
+	/*
+	int N = 40;
+	vec3 step_to_camera = (camera_position - position) / float(N);
 	vec3 current_position = position + step_to_camera * 0.5;
 	float step_length = length(step_to_camera);
-	float absorbtion = 0.01;
+	float absorbtion = 5;
 	vec3 emission = ambient * absorbtion * 1.5;
 	float absorbtion_exp = exp(-absorbtion * step_length);
 
-	for (int i = 0; i < 10 - 1; i++) {
+	for (int i = 0; (i < N - 1) && (length(current_position) < 0.99f); i++) {
 		color = absorbtion_exp * color + (1 - absorbtion_exp) * emission / absorbtion;
 		if (!in_shadow_texture) {
 			color = color + light_color * exp(-absorbtion * shadow_pos.z) * 0.0003;
 		}
 		current_position = current_position + step_to_camera;
 	}
-
+	*/
 
 	float Kr = 0.299;
 	float Kg = 0.587;

@@ -382,8 +382,8 @@ glm::ivec3 sphere_to_fst(int world_size, glm::vec3 point) {
 	auto ratio = (box_side - face_to_origin[face]);
 	auto dual_dt = face_to_dt[face] / glm::dot(face_to_dt[face], face_to_dt[face]);
 	auto dual_ds = face_to_ds[face] / glm::dot(face_to_ds[face], face_to_ds[face]);
-	auto t = glm::dot(ratio, dual_dt) * world_size;
-	auto s = glm::dot(ratio, dual_ds) * world_size;
+	auto t = std::max(0.f, glm::dot(ratio, dual_dt) - 0.00001f) * world_size;
+	auto s = std::max(0.f, glm::dot(ratio, dual_ds) - 0.00001f) * world_size;
 	return {face, (int)(s), (int)(t)};
 }
 
@@ -463,15 +463,21 @@ void push_face_vertices(dcon::data_container& state, game::map_state& data, int 
 
 			auto current_origin = origin + s_current_ds + s_current_dt;
 
+			auto minor_shift = glm::vec3(0.00f, 0.00f, 0.00f);
+
 			auto p00 = (current_origin) / glm::length(current_origin);
 			auto p01 = (current_origin + s_next_dt) / glm::length(current_origin + s_next_dt);
 			auto p10 = (current_origin + s_next_ds) / glm::length(current_origin + s_next_ds);
 			auto p11 = (current_origin + s_next_dt + s_next_ds) / glm::length(current_origin + s_next_dt + s_next_ds);
 
-			auto tile00 = r3_to_tile(world_size, p00);
-			auto tile01 = r3_to_tile(world_size, p01);
-			auto tile10 = r3_to_tile(world_size, p10);
-			auto tile11 = r3_to_tile(world_size, p11);
+			auto tile00 = r3_to_tile(world_size, p00 + minor_shift);
+			auto tile01 = r3_to_tile(world_size, p01 + minor_shift);
+			auto tile10 = r3_to_tile(world_size, p10 + minor_shift);
+			auto tile11 = r3_to_tile(world_size, p11 + minor_shift);
+
+			auto location = tile_to_sphere(world_size, tile00);
+			auto distance = glm::distance(p00, location);
+			assert(distance < 4.f / (float)world_size);
 
 			auto elevation00 = opengl_elevation(state.tile_get_elevation(tile00));
 			auto elevation01 = opengl_elevation(state.tile_get_elevation(tile01));
@@ -1535,7 +1541,40 @@ int main(void)
 						map_mode_data[4 * index + 3] = 255;
 					});
 				} else if (item_selected_idx == 5) {
-
+					state.for_each_tile([&](dcon::tile_id tile) {
+						auto plate = state.tile_get_plate_from_plate_tiles(tile);
+						auto fst = tile_to_fst(world_size, tile);
+						auto r = state.plate_get_r(plate);
+						auto g = state.plate_get_g(plate);
+						auto b = state.plate_get_b(plate);
+						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+						if (!state.tile_get_is_land(tile)) {
+							map_mode_data[4 * index + 0] = 0;
+							map_mode_data[4 * index + 1] = 0;
+							map_mode_data[4 * index + 2] = 0;
+							map_mode_data[4 * index + 3] = 255;
+						} else {
+							map_mode_data[4 * index + 0] = 255;
+							map_mode_data[4 * index + 1] = 255;
+							map_mode_data[4 * index + 2] = 255;
+							map_mode_data[4 * index + 3] = 255;
+						}
+					});
+				} else if (item_selected_idx == 6) {
+					state.for_each_tile([&](dcon::tile_id tile) {
+						auto plate = state.tile_get_plate_from_plate_tiles(tile);
+						auto fst = tile_to_fst(world_size, tile);
+						auto r = state.plate_get_r(plate);
+						auto g = state.plate_get_g(plate);
+						auto b = state.plate_get_b(plate);
+						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+						auto elevation = state.tile_get_elevation(tile);
+						auto score = (uint8_t)((elevation / 16000.f + 0.5f) * 255.f);
+						map_mode_data[4 * index + 0] = score;
+						map_mode_data[4 * index + 1] = score;
+						map_mode_data[4 * index + 2] = score;
+						map_mode_data[4 * index + 3] = 255;
+					});
 				}
 				push_map_mode();
 			}
