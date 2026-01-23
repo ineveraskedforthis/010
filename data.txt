@@ -231,6 +231,144 @@ object {
 	}
 }
 object {
+	name { climate_cell }
+	storage_type { contiguous }
+	size { 1500000 }
+	tag {scenario}
+	property{
+		name { elevation }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { water_fraction }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { january_temperature }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { january_rainfall }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { january_humidity }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { january_wind_speed }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { july_temperature }
+		type { float }
+		tag { scenario }
+	}
+
+	property{
+		name { july_rainfall }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { july_humidity }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { july_wind_speed }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { hadley_influence }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { med_influence }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { itcz_january }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { itcz_july }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { left_to_right_continentality }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { right_to_left_continentality }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { true_continentality }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { distance_to_sea }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { left_to_right_rain_shadow }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { right_to_left_rain_shadow }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { true_rain_shadow }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { saldo_north }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { saldo_south }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { cache }
+		type { array{uint8_t}{float} }
+		tag { scenario }
+	}
+	property{
+		name { land_tiles }
+		type { float }
+		tag { scenario }
+	}
+	property{
+		name { water_tiles }
+		type { float }
+		tag { scenario }
+	}
+}
+
+object {
 	name { plate }
 	storage_type { erasable }
 	size { 50 }

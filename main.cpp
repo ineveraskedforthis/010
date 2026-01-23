@@ -31,6 +31,17 @@
 #include "frustum.hpp"
 #include "unordered_dense.h"
 
+// https://stackoverflow.com/a/16323388/10281950
+static int traceback(lua_State *L) {
+	lua_getfield(L, LUA_GLOBALSINDEX, "debug");
+	lua_getfield(L, -1, "traceback");
+	lua_pushvalue(L, 1);
+	lua_pushinteger(L, 2);
+	lua_call(L, 2, 1);
+	fprintf(stderr, "%s\n", lua_tostring(L, -1));
+	return 1;
+}
+
 glm::vec3 hsv_to_rgb(float h, float s, float v) {
 	auto c = v * s;
 	int section = h / 60;
@@ -910,6 +921,7 @@ int main(void)
 	lua_State *L;
 	L = luaL_newstate();
 	luaL_openlibs(L);
+
 	status = luaL_loadfile(L, "./lua/main.lua");
 	if (status) {
 		fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
@@ -936,11 +948,13 @@ int main(void)
 		exit(1);
 	}
 
+
+	lua_pushcfunction(L, traceback);
 	lua_getfield(L, LUA_GLOBALSINDEX, "sote");
 	lua_getfield(L, -1, "load_raws");
-	result = lua_pcall(L, 0, LUA_MULTRET, 0);
+	result = lua_pcall(L, 0, LUA_MULTRET, -3);
 	if (result) {
-		fprintf(stderr, "Failed to run script: %s\n", lua_tostring(L, -1));
+		// fprintf(stderr, "Failed to run script: %s\n", lua_tostring(L, -1));
 		exit(1);
 	}
 	lua_pop(L, 1);  /* Take the returned value out of the stack */
@@ -1369,11 +1383,12 @@ int main(void)
 	}
 
 
-	lua_getfield(L, LUA_GLOBALSINDEX, "sote");
-	lua_getfield(L, -1, "load_world");
-	result = lua_pcall(L, 0, LUA_MULTRET, 0);
+	lua_pushcfunction(L, traceback); // [.. traceback
+	lua_getfield(L, LUA_GLOBALSINDEX, "sote"); // [.. traceback sote
+	lua_getfield(L, -1, "load_world"); // [.. traceback sote load_world
+	result = lua_pcall(L, 0, 0, -3);
 	if (result) {
-		fprintf(stderr, "Failed to run script: %s\n", lua_tostring(L, -1));
+		// fprintf(stderr, "Failed to run script: %s\n", lua_tostring(L, -1));
 		exit(1);
 	}
 	lua_pop(L, 1);
@@ -1381,6 +1396,44 @@ int main(void)
 	*/
 
 	lua_close(L);   /* Cya, Lua */
+
+	{
+		printf("Spawn races");
+
+		state.for_each_race([&](dcon::race_id race){
+			state.for_each_tile([&](dcon::tile_id tile){
+				auto settlement = state.tile_get_settlement_from_settlement_tile(tile);
+				if (settlement) return;
+				if (!state.tile_get_is_land(tile)) return;
+
+
+				if (state.race_get_requires_large_river(race)) {
+					if (!state.tile_get_has_river(tile)) return;
+				}
+
+				if (state.race_get_requires_large_forest(race)) {
+					if(state.tile_get_conifer(tile) + state.tile_get_broadleaf(tile) < 0.5) return;
+				}
+
+				auto elevation = state.tile_get_elevation(tile);
+
+				auto january_temp = state.tile_get_january_temperature(tile);
+				auto july_temp = state.tile_get_july_temperature(tile);
+				auto min_temp = std::min(january_temp, july_temp);
+				auto avg_temp = (july_temp + january_temp) / 2.f;
+
+				if (state.race_get_minimum_comfortable_temperature(race) > avg_temp) return;
+				if (state.race_get_minimum_absolute_temperature(race) > min_temp) return;
+				if (state.race_get_minimum_comfortable_elevation(race) < elevation) return;
+
+				if (world.uniform(world.rng) > 0.01f) return;
+
+				auto s = state.create_settlement();
+				state.force_create_settlement_tile(s, tile);
+			});
+		});
+	}
+
 
 	// reserve textures for map modes
 
