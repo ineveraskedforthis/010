@@ -45,6 +45,25 @@ vec3 specular(vec3 albedo, vec3 direction) {
 			);
 }
 
+vec3 specular_expanded(vec3 position, vec3 normal, vec3 albedo, vec3 direction) {
+	float cosine = dot(normal, direction);
+	float light_factor = max(0.0, cosine);
+	vec3 reflected_direction = 2.0 * normal * cosine - direction;
+	vec3 view_direction = normalize(camera_position - position);
+
+	return 0.5 * albedo
+			* pow(
+				max(
+					0.0,
+					dot(
+						reflected_direction,
+						view_direction
+					)
+				),
+				1 / 0.5 / 0.5 - 1
+			);
+}
+
 float TonemapRaw(float x)
 {
 	float A = 0.15;
@@ -153,6 +172,9 @@ void main()
 
 	float diffuse = max(0.0, dot(normalize(frag_normal), light_direction));
 
+	if(sky_sphere == 1) {
+		shadow_factor = 1.f;
+	}
 
 	vec3 light = ambient;
 
@@ -165,12 +187,12 @@ void main()
 
 	int N = 64;
 
-	float step_length = 0.0001f;
+	float step_length = 0.01f;
 	if (sky_sphere == 1) {
 		step_length = 0.05;
 	}
-	vec3 step_to_camera = (camera_position - position) / length(camera_position - position) * step_length;
-	vec3 current_position = position + step_to_camera * 0.5;
+
+	vec3 current_position = position;
 
 	// float absorbtion = 5;
 	// vec3 emission = ambient * absorbtion * 0.f;
@@ -206,14 +228,21 @@ void main()
 		translucent = 1.f;
 	}
 
-	for (int i = 0; i < 32 && length(current_position) < 1.6f; i++) {
+
+	for (int i = 0; i < 1024 && length(current_position) < 1.6f; i++) {
+		float step_length = 0.05f;
 		float density_absorbed = 5.f;
 		float density_reflected = 0.1f;
+		float specularity = 0.1f;
 		if (length(current_position) < 1.f) {
 			density_absorbed = 1000.f;
+			specularity = 0.5f;
+			step_length = 0.005f;
 		} else {
 			density_absorbed = max(0.f, 1.05f - length(current_position)) * 100.f;
 		}
+
+		vec3 step_to_camera = (camera_position - position) / length(camera_position - position) * step_length;
 
 		/*
 		float absorbtion_exp = exp(-absorbtion * step_length * density);
@@ -238,7 +267,7 @@ void main()
 		}
 		*/
 
-		color = color * absorbed + (light_color * (shadow_factor + 0.8f) + ambient) * (1.f - absorbed) * density_reflected * step_length;
+		color = color * absorbed + specular_expanded(current_position, normalize(current_position), light_color, light_direction) * specularity * density_reflected + (light_color * (shadow_factor + 0.8f) + ambient) * (1.f - absorbed) * density_reflected * step_length;
 		translucent = translucent * absorbed_f - density_reflected * step_length;
 		current_position = current_position + step_to_camera;
 	}
