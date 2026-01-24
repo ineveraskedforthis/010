@@ -105,6 +105,17 @@ struct mesh {
 	GLuint vbo;
 };
 
+struct simple_vertex {
+	glm::vec3 position;
+	glm::vec2 texcoord;
+};
+
+struct simple_mesh {
+	std::vector<simple_vertex> data;
+	GLuint vao;
+	GLuint vbo;
+};
+
 struct map_state {
 	// std::array<char, WORLD_AREA_TILES> height {};
 	mesh mesh {};
@@ -568,6 +579,34 @@ void push_face_vertices(dcon::data_container& state, game::map_state& data, int 
 
 }
 
+void generate_square(game::simple_mesh& mesh) {
+	mesh.data.push_back({{1.f, -1.f, -1.f}, {0.f, 0.f}});
+	mesh.data.push_back({{1.f, -1.f, 1.f}, {0.f, 1.f}});
+	mesh.data.push_back({{1.f, 1.f, -1.f}, {1.f, 0.f}});
+
+	mesh.data.push_back({{1.f, -1.f, 1.f}, {0.f, 1.f}});
+	mesh.data.push_back({{1.f, 1.f, -1.f}, {1.f, 0.f}});
+	mesh.data.push_back({{1.f, 1.f, 1.f}, {1.f, 1.f}});
+
+	GLuint vbo;
+	glGenBuffers(1, &vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, mesh.data.size() * sizeof(game::simple_vertex), mesh.data.data(), GL_STATIC_DRAW);
+
+	GLuint vao;
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(game::simple_vertex),  reinterpret_cast<void*>(0));
+
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(game::simple_vertex),  reinterpret_cast<void*>(sizeof(float) * 3));
+
+	mesh.vao = vao;
+	mesh.vbo = vbo;
+}
 
 void generate_cube_sphere(dcon::data_container& state,  game::map_state& data, int world_size, bool fake) {
 	push_face_vertices(
@@ -818,6 +857,23 @@ int main(void)
 	shader_2d_loc.zoom = glGetUniformLocation(shader_2d, "zoom");
 	shader_2d_loc.aspect_ratio = glGetUniformLocation(shader_2d, "aspect_ratio");
 
+	// setting up an extra basic shader
+
+	std::string extra_basic_shader_vertex_path = "./shaders/basic_shader_textured.vert";
+	std::string extra_basic_shader_fragment_path = "./shaders/basic_shader_textured.frag";
+
+	std::string vertex_extra_basic_shader_source = read_shader( extra_basic_shader_vertex_path );
+	std::string fragment_extra_basic_shader_source = read_shader( extra_basic_shader_fragment_path );
+
+	auto extra_basic_shader = create_program(
+		create_shader(GL_VERTEX_SHADER, vertex_extra_basic_shader_source.c_str()),
+		create_shader(GL_FRAGMENT_SHADER, fragment_extra_basic_shader_source.c_str())
+	);
+
+	GLuint extra_basic_model_location = glGetUniformLocation(extra_basic_shader, "model");
+	GLuint extra_basic_view_location = glGetUniformLocation(extra_basic_shader, "view");
+	GLuint extra_basic_projection_location = glGetUniformLocation(extra_basic_shader, "projection");
+	GLuint extra_basic_texture_location = glGetUniformLocation(extra_basic_shader, "texture_sampler");
 
 	// setting up a basic shader
 	std::string basic_shader_vertex_path = "./shaders/basic_shader_meshes.vert";
@@ -1426,7 +1482,7 @@ int main(void)
 				if (state.race_get_minimum_absolute_temperature(race) > min_temp) return;
 				if (state.race_get_minimum_comfortable_elevation(race) < elevation) return;
 
-				if (world.uniform(world.rng) > 0.01f) return;
+				if (world.uniform(world.rng) > 0.001f) return;
 
 				auto s = state.create_settlement();
 				state.force_create_settlement_tile(s, tile);
@@ -1435,7 +1491,12 @@ int main(void)
 	}
 
 
+	bool flip_x = false;
+	bool flip_y = false;
+
 	// reserve textures for map modes
+
+
 
 	GLsizei map_mode_resolution = world_size;
 	constexpr GLsizei map_mode_layers = 6;
@@ -1466,6 +1527,8 @@ int main(void)
 	generate_cube_sphere(state, world.map, world_size, false);
 	generate_cube_sphere(state, world.sky, world_size, true);
 
+	game::simple_mesh square {};
+	generate_square(square);
 
 	float update_timer = 0.f;
 	glm::vec3 light_direction {0.5f, 0.5f, 0.5f};
@@ -1555,6 +1618,13 @@ int main(void)
 				counter++;
 			ImGui::SameLine();
 			ImGui::Text("counter = %d", counter);
+
+			if (ImGui::Button("flip_x")) {
+				flip_x = !flip_x;
+			}
+			if (ImGui::Button("flip_y")) {
+				flip_y = !flip_y;
+			}
 
 			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 			ImGui::End();
@@ -1971,6 +2041,38 @@ int main(void)
 			world.sky.mesh.data.size()
 		);
 
+		assert_no_errors();
+
+		glUseProgram(extra_basic_shader);
+		glDisable(GL_CULL_FACE);
+		glUniformMatrix4fv(extra_basic_view_location, 1, GL_FALSE, reinterpret_cast<float *>(&view));
+		glUniformMatrix4fv(extra_basic_projection_location, 1, GL_FALSE, reinterpret_cast<float *>(&projection_full_range));
+
+		state.for_each_settlement([&](auto settlement){
+			auto tile = state.settlement_get_tile_from_settlement_tile(settlement);
+			auto x = state.tile_get_x(tile);
+			auto y = state.tile_get_y(tile);
+			auto z = state.tile_get_z(tile);
+
+			auto elevation = state.tile_get_elevation(tile);
+			auto scale_r = opengl_elevation(elevation);
+
+			auto rect = sphere_to_rect({x, y, z});
+			rect.x = 0.5f - rect.x;
+			rect.y = 1.f - rect.y;
+
+			glm::mat4 model_square (1.f);
+			model_square = glm::rotate(model_square, rect.x * glm::pi<float>() * 2.f, {0.f, 1.f, 0.f});
+			model_square = glm::rotate(model_square, (rect.y - 0.5f) * glm::pi<float>(), {0.f, 0.f, 1.f});
+			model_square = glm::scale(model_square, {scale_r * 1.01f, 0.003f, 0.003f});
+			glUniformMatrix4fv(extra_basic_model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model_square));
+			glBindVertexArray(square.vao);
+			glDrawArrays(
+				GL_TRIANGLES,
+				0,
+				square.data.size()
+			);
+		});
 
 		assert_no_errors();
 
