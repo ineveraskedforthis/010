@@ -2064,7 +2064,7 @@ int main(void)
 			glm::mat4 model_square (1.f);
 			model_square = glm::rotate(model_square, rect.x * glm::pi<float>() * 2.f, {0.f, 1.f, 0.f});
 			model_square = glm::rotate(model_square, (rect.y - 0.5f) * glm::pi<float>(), {0.f, 0.f, 1.f});
-			model_square = glm::scale(model_square, {scale_r * 1.01f, 0.003f, 0.003f});
+			model_square = glm::scale(model_square, {scale_r * 1.001f, 0.0015f, 0.0015f});
 			glUniformMatrix4fv(extra_basic_model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model_square));
 			glBindVertexArray(square.vao);
 			glDrawArrays(
