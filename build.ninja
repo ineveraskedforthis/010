@@ -110,4 +110,4 @@ build cache/main.o : ccpp main.cpp | glfw/build/src/glfw3.lib glew-cmake/build/l
 
 build cache/sote_functions.o : ccpp sote_functions.cpp | data.hpp lua-export.hpp
 
-build 009.exe : link cache/main.o cache/frustum.o cache/dcon_common.o cache/stb.o cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o cache/imgui_draw.o cache/imgui.o cache/sote_functions.o | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib
+build 010.exe : link cache/main.o cache/frustum.o cache/dcon_common.o cache/stb.o cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o cache/imgui_draw.o cache/imgui.o cache/sote_functions.o | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib
