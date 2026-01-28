@@ -31,6 +31,9 @@
 #include "frustum.hpp"
 #include "unordered_dense.h"
 
+#define DCON_LUADLL_EXPORTS
+#include "export_ifdefs.hpp"
+
 // https://stackoverflow.com/a/16323388/10281950
 static int traceback(lua_State *L) {
 	lua_getfield(L, LUA_GLOBALSINDEX, "debug");
@@ -121,6 +124,15 @@ struct map_state {
 	mesh mesh {};
 };
 
+
+struct text_collection {
+	std::vector<char> text;
+	std::vector<uint32_t> word_start;
+	std::vector<uint32_t> word_length;
+	uint32_t available_key;
+};
+
+
 struct state {
 	map_state map;
 	map_state sky;
@@ -131,6 +143,20 @@ struct state {
 };
 
 }
+
+enum class race_table_columns_id {
+	race_id,
+	name,
+	males_per_hundred_females,
+	child_age,
+	teen_age,
+	middle_age,
+	elder_age,
+	max_age,
+	minimum_comfortable_temperature,
+	female_body_size,
+	male_body_size
+};
 
 std::string_view opengl_get_error_name(GLenum t) {
 	switch(t) {
@@ -775,8 +801,27 @@ struct shader_2d_data {
 };
 
 game::state world {};
-
+game::text_collection game_text {};
 dcon::data_container state {};
+
+uint32_t new_text(dcon::data_container& state, game::text_collection& collection, int32_t text_len, const char* data) {
+	auto new_start = collection.text.size();
+	auto key = collection.available_key;
+	collection.text.resize(collection.text.size() + text_len + 1);
+	std::copy(data, data + text_len, collection.text.data() + new_start);
+	collection.word_start.push_back(new_start);
+	collection.word_length.push_back(text_len);
+	collection.available_key++;
+	return key;
+}
+
+
+extern "C" {
+	DCON_LUADLL_API uint32_t register_text(int32_t text_len, const char* data);
+};
+uint32_t register_text(int32_t text_len, const char* data) {
+	return new_text(state, game_text, text_len, data);
+}
 
 int main(void)
 {
@@ -1454,6 +1499,8 @@ int main(void)
 	lua_close(L);   /* Cya, Lua */
 
 	{
+		// really basic
+		// to be replaced with whatever squealing is doing in the shadows
 		printf("Spawn races");
 
 		state.for_each_race([&](dcon::race_id race){
@@ -1627,6 +1674,174 @@ int main(void)
 			}
 
 			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+			ImGui::End();
+		}
+
+		{
+			ImGui::Begin("Races");
+
+			// Create item list
+			static std::vector<dcon::race_id> items;
+			if (items.size() == 0) {
+				state.for_each_race([&](auto race_id){
+					items.push_back(race_id);
+				});
+			}
+
+			// Options
+			static ImGuiTableFlags flags =
+			ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Sortable | ImGuiTableFlags_SortMulti
+			| ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV | ImGuiTableFlags_NoBordersInBody
+			| ImGuiTableFlags_ScrollY;
+
+			if (
+				ImGui::BeginTable(
+					"table_sorting",
+					4,
+					flags,
+					ImVec2(0.0f, TEXT_BASE_HEIGHT * 15),
+					0.0f)
+			) {
+
+				ImGui::TableSetupColumn(
+					"ID",
+					ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed,
+					60.0f,
+					int(race_table_columns_id::race_id)
+				);
+
+				ImGui::TableSetupColumn(
+					"Name",
+					ImGuiTableColumnFlags_WidthFixed,
+					120.0f,
+					int(race_table_columns_id::name)
+				);
+
+				ImGui::TableSetupColumn(
+					"Max age",
+					ImGuiTableColumnFlags_WidthFixed,
+					0.0f,
+					int(race_table_columns_id::max_age)
+				);
+
+				ImGui::TableSetupScrollFreeze(0, 1); // Make row always visible
+				ImGui::TableHeadersRow();
+
+				// Sort our data if sort specs have been changed!
+				if (ImGuiTableSortSpecs* sort_specs = ImGui::TableGetSortSpecs()) {
+					if (sort_specs->SpecsDirty) {
+						std::sort(items.begin(), items.end(), [&](dcon::race_id a, dcon::race_id b){
+							for (int n = 0; n < sort_specs->SpecsCount; n++) {
+								auto& sorted_colum = sort_specs->Specs[n];
+								auto column = race_table_columns_id(sorted_colum.ColumnUserID);
+								switch (column) {
+								case race_table_columns_id::
+									race_id:
+									return a.index() < b.index();
+								case race_table_columns_id::
+									name:
+								{
+									auto key_a = state.race_get_name_text_index(a);
+									auto key_b = state.race_get_name_text_index(b);
+									return std::strcmp(
+										game_text.text.data() + game_text.word_start[key_a],
+										game_text.text.data() + game_text.word_start[key_b]
+									) < 0;
+								}
+								case race_table_columns_id::
+									males_per_hundred_females:
+									return
+										state.race_get_males_per_hundred_females(a)
+										<
+										state.race_get_males_per_hundred_females(b);
+								case race_table_columns_id::
+									child_age:
+									return
+										state.race_get_males_per_hundred_females(a)
+										<
+										state.race_get_males_per_hundred_females(b);
+								case race_table_columns_id::
+									teen_age:
+									return
+										state.race_get_males_per_hundred_females(a)
+										<
+										state.race_get_males_per_hundred_females(b);
+								case race_table_columns_id::
+									middle_age:
+									return
+										state.race_get_males_per_hundred_females(a)
+										<
+										state.race_get_males_per_hundred_females(b);
+								case race_table_columns_id::
+									elder_age:
+									return
+										state.race_get_males_per_hundred_females(a)
+										<
+										state.race_get_males_per_hundred_females(b);
+								case race_table_columns_id::
+									max_age:
+									return
+										state.race_get_max_age(a)
+										<
+										state.race_get_max_age(b);
+								case race_table_columns_id::
+									minimum_comfortable_temperature:
+									return
+										state.race_get_max_age(a)
+										<
+										state.race_get_max_age(b);
+								case race_table_columns_id::
+									female_body_size:
+									return
+										state.race_get_female_body_size(a)
+										<
+										state.race_get_female_body_size(b);
+								case race_table_columns_id::
+									male_body_size:
+									return
+										state.race_get_male_body_size(a)
+										<
+										state.race_get_male_body_size(b);
+								break;
+								default:
+									assert(false);
+									fprintf(stderr, "Unknown race enum value");
+									exit(1);
+                                                                }
+                                                        }
+							return a.index() < b.index();
+						});
+						sort_specs->SpecsDirty = false;
+					}
+				}
+
+				// Demonstrate using clipper for large vertical lists
+				ImGuiListClipper clipper;
+				clipper.Begin(items.size());
+				while (clipper.Step()) {
+					for (int row_n = clipper.DisplayStart; row_n < clipper.DisplayEnd; row_n++) {
+						// Display a data item
+						auto item = items[row_n];
+						ImGui::PushID(item.index());
+
+						ImGui::TableNextRow();
+
+						ImGui::TableNextColumn();
+						ImGui::Text("%04d", item.index());
+
+						ImGui::TableNextColumn();
+						auto name_text_index = state.race_get_name_text_index(item);
+						ImGui::TextUnformatted(game_text.text.data() + game_text.word_start[name_text_index]);
+
+						ImGui::TableNextColumn();
+						ImGui::Text("%f", state.race_get_max_age(item));
+
+						ImGui::PopID();
+					}
+				}
+				ImGui::EndTable();
+			}
+
 			ImGui::End();
 		}
 

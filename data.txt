@@ -2580,6 +2580,16 @@ object {
 		tag { scenario }
 	}
 	property{
+		name { name_text_index }
+		type { uint32_t }
+		tag { scenario }
+	}
+	property{
+		name { icon_path_text_index }
+		type { uint32_t }
+		tag { scenario }
+	}
+	property{
 		name { carrying_capacity_weight }
 		type { float }
 		tag { scenario }
