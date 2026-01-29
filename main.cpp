@@ -124,14 +124,17 @@ struct map_state {
 	mesh mesh {};
 };
 
+constexpr inline uint32_t TEXT_KEY_IS_TEXTURE_PATH = 1;
 
 struct text_collection {
 	std::vector<char> text;
 	std::vector<uint32_t> word_start;
 	std::vector<uint32_t> word_length;
+	std::vector<uint32_t> associated_texture;
+	std::vector<uint32_t> flags;
 	uint32_t available_key;
+	ankerl::unordered_dense::map<std::string, uint32_t> existing_asset;
 };
-
 
 struct state {
 	map_state map;
@@ -146,6 +149,7 @@ struct state {
 
 enum class race_table_columns_id {
 	race_id,
+	icon,
 	name,
 	males_per_hundred_females,
 	child_age,
@@ -811,16 +815,72 @@ uint32_t new_text(dcon::data_container& state, game::text_collection& collection
 	std::copy(data, data + text_len, collection.text.data() + new_start);
 	collection.word_start.push_back(new_start);
 	collection.word_length.push_back(text_len);
+	collection.associated_texture.push_back(0);
+	collection.flags.push_back(0);
 	collection.available_key++;
 	return key;
+}
+
+void load_texture(game::text_collection& collection, uint32_t text_key) {
+	if (collection.flags[text_key] & game::TEXT_KEY_IS_TEXTURE_PATH) {
+		// already loaded
+		return;
+	}
+	collection.flags[text_key] |= game::TEXT_KEY_IS_TEXTURE_PATH;
+
+	std::string string_key { collection.text.data() + collection.word_start[text_key] };
+
+	auto found = collection.existing_asset.find(string_key);
+
+	if (found == collection.existing_asset.end()) {
+		uint8_t * img;
+		int width, height, channels;
+
+		img = stbi_load(
+			collection.text.data() + collection.word_start[text_key],
+			&width,
+			&height,
+			&channels,
+			4
+		);
+
+		glGenTextures(1, &collection.associated_texture[text_key]);
+		glBindTexture(GL_TEXTURE_2D, collection.associated_texture[text_key]);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+		glTexImage2D(
+			GL_TEXTURE_2D,
+			0,
+			GL_RGBA,
+			width,
+			height,
+			0,
+			GL_RGBA, GL_UNSIGNED_BYTE, img
+		);
+
+		assert_no_errors();
+
+		collection.existing_asset[string_key] = text_key;
+	} else {
+		collection.associated_texture[text_key] = collection.associated_texture[found->second];
+	}
 }
 
 
 extern "C" {
 	DCON_LUADLL_API uint32_t register_text(int32_t text_len, const char* data);
+	DCON_LUADLL_API uint32_t register_texture(int32_t text_len, const char* data);
 };
 uint32_t register_text(int32_t text_len, const char* data) {
 	return new_text(state, game_text, text_len, data);
+}
+uint32_t register_texture(int32_t text_len, const char* data) {
+	auto text_key =  new_text(state, game_text, text_len, data);
+	load_texture(game_text, text_key);
+	return text_key;
 }
 
 int main(void)
@@ -1697,11 +1757,18 @@ int main(void)
 			if (
 				ImGui::BeginTable(
 					"table_sorting",
-					4,
+					5,
 					flags,
 					ImVec2(0.0f, TEXT_BASE_HEIGHT * 15),
 					0.0f)
 			) {
+
+				ImGui::TableSetupColumn(
+					"Icon",
+					ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed,
+					20.0f,
+					int(race_table_columns_id::icon)
+				);
 
 				ImGui::TableSetupColumn(
 					"ID",
@@ -1735,8 +1802,8 @@ int main(void)
 								auto& sorted_colum = sort_specs->Specs[n];
 								auto column = race_table_columns_id(sorted_colum.ColumnUserID);
 								switch (column) {
-								case race_table_columns_id::
-									race_id:
+								case race_table_columns_id::race_id:
+								case race_table_columns_id::icon:
 									return a.index() < b.index();
 								case race_table_columns_id::
 									name:
@@ -1825,6 +1892,28 @@ int main(void)
 						ImGui::PushID(item.index());
 
 						ImGui::TableNextRow();
+
+
+						ImGui::TableNextColumn();
+						auto texture_id = game_text.associated_texture[state.race_get_icon_path_text_index(item)];
+						ImGui::ImageWithBg(
+							texture_id,
+							{20.f, 20.f},
+							{0, 0},
+							{1, 1},
+							{
+								1.f,
+								1.f,
+								1.f,
+								0.f
+							},
+							{
+								state.race_get_r(item),
+								state.race_get_g(item),
+								state.race_get_b(item),
+								1.f
+							}
+						);
 
 						ImGui::TableNextColumn();
 						ImGui::Text("%04d", item.index());
