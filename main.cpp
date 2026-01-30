@@ -131,6 +131,8 @@ struct text_collection {
 	std::vector<uint32_t> word_start;
 	std::vector<uint32_t> word_length;
 	std::vector<uint32_t> associated_texture;
+	std::vector<uint32_t> associated_texture_width;
+	std::vector<uint32_t> associated_texture_height;
 	std::vector<uint32_t> flags;
 	uint32_t available_key;
 	ankerl::unordered_dense::map<std::string, uint32_t> existing_asset;
@@ -312,7 +314,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 
 	if (key == GLFW_KEY_J) {
 		if (action == GLFW_PRESS) {
-			desired_zoom_level = std::max(-1, desired_zoom_level - 1);
+			desired_zoom_level = std::max(-2, desired_zoom_level - 1);
 		}
 	}
 
@@ -610,13 +612,13 @@ void push_face_vertices(dcon::data_container& state, game::map_state& data, int 
 }
 
 void generate_square(game::simple_mesh& mesh) {
-	mesh.data.push_back({{1.f, -1.f, -1.f}, {0.f, 0.f}});
-	mesh.data.push_back({{1.f, -1.f, 1.f}, {0.f, 1.f}});
-	mesh.data.push_back({{1.f, 1.f, -1.f}, {1.f, 0.f}});
+	mesh.data.push_back({{1.f, -1.f, -1.f}, {0.f, 1.f}});
+	mesh.data.push_back({{1.f, -1.f, 1.f}, {1.f, 1.f}});
+	mesh.data.push_back({{1.f, 1.f, -1.f}, {0.f, 0.f}});
 
-	mesh.data.push_back({{1.f, -1.f, 1.f}, {0.f, 1.f}});
-	mesh.data.push_back({{1.f, 1.f, -1.f}, {1.f, 0.f}});
-	mesh.data.push_back({{1.f, 1.f, 1.f}, {1.f, 1.f}});
+	mesh.data.push_back({{1.f, -1.f, 1.f}, {1.f, 1.f}});
+	mesh.data.push_back({{1.f, 1.f, -1.f}, {0.f, 0.f}});
+	mesh.data.push_back({{1.f, 1.f, 1.f}, {1.f, 0.f}});
 
 	GLuint vbo;
 	glGenBuffers(1, &vbo);
@@ -816,6 +818,8 @@ uint32_t new_text(dcon::data_container& state, game::text_collection& collection
 	collection.word_start.push_back(new_start);
 	collection.word_length.push_back(text_len);
 	collection.associated_texture.push_back(0);
+	collection.associated_texture_height.push_back(0);
+	collection.associated_texture_width.push_back(0);
 	collection.flags.push_back(0);
 	collection.available_key++;
 	return key;
@@ -864,8 +868,12 @@ void load_texture(game::text_collection& collection, uint32_t text_key) {
 		assert_no_errors();
 
 		collection.existing_asset[string_key] = text_key;
+		collection.associated_texture_height[text_key] = height;
+		collection.associated_texture_width[text_key] = width;
 	} else {
 		collection.associated_texture[text_key] = collection.associated_texture[found->second];
+		collection.associated_texture_height[text_key] = collection.associated_texture_height[found->second];
+		collection.associated_texture_width[text_key] = collection.associated_texture_width[found->second];
 	}
 }
 
@@ -881,6 +889,109 @@ uint32_t register_texture(int32_t text_len, const char* data) {
 	auto text_key =  new_text(state, game_text, text_len, data);
 	load_texture(game_text, text_key);
 	return text_key;
+}
+
+extern "C" {
+	uint32_t age_years(dcon::pop_id pop);
+}
+
+uint8_t age_bracket(dcon::data_container& state, dcon::race_id race, uint32_t age) {
+	if (age < state.race_get_child_age(race)) {
+		return 0;
+	}
+	if (age < state.race_get_teen_age(race)) {
+		return 1;
+	}
+	if (age < state.race_get_adult_age(race)) {
+		return 2;
+	}
+	if (age < state.race_get_middle_age(race)) {
+		return 3;
+	}
+	if (age < state.race_get_elder_age(race)) {
+		return 4;
+	}
+	return 5;
+}
+
+void render_portrait(dcon::data_container& state, game::text_collection& assets, dcon::pop_id pop, int vertices, GLuint uv_mod_location) {
+	auto female = state.pop_get_female(pop);
+	auto race = state.pop_get_race(pop);
+	auto portrait =
+		female
+		? state.race_get_portrait_fallback_female(race)
+		: state.race_get_portrait_fallback_male(race);
+
+	auto age = age_years(pop);
+	auto bracket = age_bracket(state, race, age);
+	auto portrait_from_age =
+		female
+		? state.race_get_portrait_per_age_bracket_female(race, bracket)
+		: state.race_get_portrait_per_age_bracket_male(race, bracket);
+
+	if (portrait_from_age) {
+		portrait = portrait_from_age;
+	}
+
+	if (!portrait) {
+		return;
+	}
+
+	std::vector<float> dna_per_layer;
+	for (uint32_t i = 0; i < state.portrait_set_get_layers_size(); i++) {
+		if(!state.portrait_set_get_layers(portrait, i)) break;
+		dna_per_layer.push_back(state.pop_get_dna(pop, i));
+	}
+
+	for (uint8_t i = 0; i < state.portrait_set_get_groups_size(); i++) {
+		auto group = state.portrait_set_get_groups(portrait, i);
+		if (!group) break;
+		auto first_layer = group.get_group(0);
+		// find index of this layer:
+		uint32_t dna_index_of_the_first_layer = 0;
+		for (uint32_t k = 0; k < state.portrait_set_get_layers_size(); k++) {
+			if(!state.portrait_set_get_layers(portrait, k)) break;
+			if(state.portrait_set_get_layers(portrait, k) == first_layer) {
+				dna_index_of_the_first_layer = k;
+				break;
+			}
+		}
+		for (uint8_t j = 0; j < state.portrait_layer_group_get_group_size(); j++) {
+			auto grouped_layer = state.portrait_layer_group_get_group(group, j);
+			uint32_t dna_index_of_the_current_layer = 0;
+			for (uint32_t k = 0; k < state.portrait_set_get_layers_size(); k++) {
+				if(!state.portrait_set_get_layers(portrait, k)) break;
+				if(state.portrait_set_get_layers(portrait, k) == grouped_layer) {
+					dna_index_of_the_current_layer = k;
+					break;
+				}
+			}
+			dna_per_layer[dna_index_of_the_current_layer] = dna_per_layer[dna_index_of_the_first_layer];
+		}
+	}
+
+	for (uint32_t i = 0; i < state.portrait_set_get_layers_size(); i++) {
+		auto layer = state.portrait_set_get_layers(portrait, i);
+		if(!layer) break;
+		auto dna = dna_per_layer[i];
+		auto asset = state.portrait_layer_get_path_text_index(layer);
+
+		auto frames = assets.associated_texture_width[asset] / assets.associated_texture_height[asset];
+		int frame_index = (int)(dna * frames);
+		auto frame_step = 1.f / (float) frames;
+		float texture_start = frame_step * (float)(frame_index);
+		float texture_end = frame_step * (float)(frame_index + 1);
+		glUniform4f(uv_mod_location, texture_start, 0.f, frame_step, 1.f);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, assets.associated_texture[asset]);
+
+		glDrawArrays(
+			GL_TRIANGLES,
+			0,
+			vertices
+		);
+	}
 }
 
 int main(void)
@@ -979,6 +1090,7 @@ int main(void)
 	GLuint extra_basic_view_location = glGetUniformLocation(extra_basic_shader, "view");
 	GLuint extra_basic_projection_location = glGetUniformLocation(extra_basic_shader, "projection");
 	GLuint extra_basic_texture_location = glGetUniformLocation(extra_basic_shader, "texture_sampler");
+	GLuint extra_basic_uv_mod_location = glGetUniformLocation(extra_basic_shader, "uv_mod");
 
 	// setting up a basic shader
 	std::string basic_shader_vertex_path = "./shaders/basic_shader_meshes.vert";
@@ -1562,7 +1674,7 @@ int main(void)
 		// really basic
 		// to be replaced with whatever squealing is doing in the shadows
 		printf("Spawn races");
-
+		state.pop_resize_dna(20);
 		state.for_each_race([&](dcon::race_id race){
 			state.for_each_tile([&](dcon::tile_id tile){
 				auto settlement = state.tile_get_settlement_from_settlement_tile(tile);
@@ -1587,12 +1699,20 @@ int main(void)
 
 				if (state.race_get_minimum_comfortable_temperature(race) > avg_temp) return;
 				if (state.race_get_minimum_absolute_temperature(race) > min_temp) return;
-				if (state.race_get_minimum_comfortable_elevation(race) < elevation) return;
+				if (state.race_get_minimum_comfortable_elevation(race) > elevation) return;
 
 				if (world.uniform(world.rng) > 0.001f) return;
 
 				auto s = state.create_settlement();
 				state.force_create_settlement_tile(s, tile);
+
+				auto leader = state.create_pop();
+				state.force_create_pop_location(s, leader);
+				state.pop_set_race(leader, race);
+				// set dna
+				for (int i = 0; i < 20; i ++) {
+					state.pop_set_dna(leader, i, world.uniform(world.rng));
+				}
 			});
 		});
 	}
@@ -1667,21 +1787,31 @@ int main(void)
 		eye *=  camera_position.z;
 
 		float target_zoom = 1.5;
+		float speed_mult = 20.f;
+		if (desired_zoom_level == -2) {
+			auto tile = r3_to_tile(world_size, eye);
+			auto elevation = state.tile_get_elevation(tile);
+			auto zoom_adjustment = opengl_elevation(elevation);
+			target_zoom = zoom_adjustment + 0.05f;
+			speed_mult = 5.f;
+		}
 		if (desired_zoom_level == -1) {
 			auto tile = r3_to_tile(world_size, eye);
 			auto elevation = state.tile_get_elevation(tile);
 			auto zoom_adjustment = opengl_elevation(elevation);
 			target_zoom = zoom_adjustment + 0.2f;
+			speed_mult = 10.f;
 		}
 		if (desired_zoom_level == 1) {
 			target_zoom = 2;
+			speed_mult = 40.f;
 		}
 
-		camera_speed *= exp(-dt * 60.f * target_zoom);
+		camera_speed *= exp(-dt * 10.f);
 		camera_speed += glm::vec2(float(current_move_x), float(current_move_y)) * dt;
 
 		auto zoom_direction = target_zoom - camera_position.z;
-		camera_position.xy += camera_speed;
+		camera_position.xy += camera_speed * dt * speed_mult;
 		camera_position.z += zoom_direction * dt * 2.f;
 
 		camera_position.y = std::clamp(
@@ -2130,9 +2260,12 @@ int main(void)
 
 		float near_plane = 0.1f;
 		float far_plane = 3.f;
-
+		if (desired_zoom_level == -2) {
+			near_plane = 0.01f;
+			far_plane = camera_position.z + 0.1f;
+		}
 		if (desired_zoom_level == -1) {
-			near_plane = 0.1f;
+			near_plane = 0.01f;
 			far_plane = camera_position.z + 0.1f;
 		}
 		if (desired_zoom_level == 0) {
@@ -2347,10 +2480,14 @@ int main(void)
 
 		assert_no_errors();
 
+		// put settlement texture there
+
 		glUseProgram(extra_basic_shader);
 		glDisable(GL_CULL_FACE);
 		glUniformMatrix4fv(extra_basic_view_location, 1, GL_FALSE, reinterpret_cast<float *>(&view));
 		glUniformMatrix4fv(extra_basic_projection_location, 1, GL_FALSE, reinterpret_cast<float *>(&projection_full_range));
+		glUniform1i(extra_basic_texture_location, 0);
+		glBindVertexArray(square.vao);
 
 		state.for_each_settlement([&](auto settlement){
 			auto tile = state.settlement_get_tile_from_settlement_tile(settlement);
@@ -2370,12 +2507,18 @@ int main(void)
 			model_square = glm::rotate(model_square, (rect.y - 0.5f) * glm::pi<float>(), {0.f, 0.f, 1.f});
 			model_square = glm::scale(model_square, {scale_r * 1.001f, 0.0015f, 0.0015f});
 			glUniformMatrix4fv(extra_basic_model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model_square));
-			glBindVertexArray(square.vao);
+
+			state.settlement_for_each_pop_location(settlement, [&](dcon::pop_location_id pop_location){
+				auto pop = state.pop_location_get_pop(pop_location);
+				render_portrait(state, game_text, pop, square.data.size(), extra_basic_uv_mod_location);
+			});
+			/*
 			glDrawArrays(
 				GL_TRIANGLES,
 				0,
 				square.data.size()
 			);
+			*/
 		});
 
 		assert_no_errors();

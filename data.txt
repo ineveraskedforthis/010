@@ -540,6 +540,52 @@ relationship {
 		type { unique }
 	}
 }
+
+object {
+	name { portrait_set }
+	storage_type {contiguous}
+	size { 1000 }
+	tag { scenario }
+
+	property {
+		name { layers }
+		type { array{uint8_t}{portrait_layer_id} }
+		tag { scenario }
+	}
+
+	property {
+		name { groups }
+		type { array{uint8_t}{portrait_layer_group_id} }
+		tag { scenario }
+	}
+}
+
+object {
+	name { portrait_layer_group }
+	storage_type {contiguous}
+	size { 1000 }
+	tag { scenario }
+
+	property {
+		name { group }
+		type { array{uint8_t}{portrait_layer_id} }
+		tag { scenario }
+	}
+}
+
+object {
+	name { portrait_layer }
+	storage_type { contiguous }
+	size { 2000 }
+	tag { scenario }
+
+	property {
+		name { path_text_index }
+		type { uint32_t }
+		tag { scenario }
+	}
+}
+
 object {
 	name { pop }
 	storage_type { erasable }
@@ -548,6 +594,11 @@ object {
 	property{
 		name { unique_id }
 		type { uint32_t }
+		tag { scenario }
+	}
+	property{
+		name { is_character }
+		type { bitfield }
 		tag { scenario }
 	}
 	property{
@@ -2577,6 +2628,26 @@ object {
 	property{
 		name { b }
 		type { float }
+		tag { scenario }
+	}
+	property{
+		name { portrait_fallback_male }
+		type { portrait_set_id }
+		tag { scenario }
+	}
+	property{
+		name { portrait_fallback_female }
+		type { portrait_set_id }
+		tag { scenario }
+	}
+	property{
+		name { portrait_per_age_bracket_male }
+		type { array{uint8_t}{portrait_set_id} }
+		tag { scenario }
+	}
+	property{
+		name { portrait_per_age_bracket_female }
+		type { array{uint8_t}{portrait_set_id} }
 		tag { scenario }
 	}
 	property{
