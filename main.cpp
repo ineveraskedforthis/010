@@ -1701,7 +1701,7 @@ int main(void)
 				if (state.race_get_minimum_absolute_temperature(race) > min_temp) return;
 				if (state.race_get_minimum_comfortable_elevation(race) > elevation) return;
 
-				if (world.uniform(world.rng) > 0.001f) return;
+				if (world.uniform(world.rng) > 0.0001f) return;
 
 				auto s = state.create_settlement();
 				state.force_create_settlement_tile(s, tile);
@@ -2481,6 +2481,8 @@ int main(void)
 		assert_no_errors();
 
 		// put settlement texture there
+
+		glDisable(GL_DEPTH_TEST);
 
 		glUseProgram(extra_basic_shader);
 		glDisable(GL_CULL_FACE);
