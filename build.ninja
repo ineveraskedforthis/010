@@ -37,6 +37,9 @@ rule use_dcon_lua
   command = ./DCON_LUA "sote" "state." "$in" "lua-export.cpp" "lua-export.hpp" "./codegen-lua"
   restat = 1
 
+rule clone_blank_project
+  command = cmd /c "git clone https://github.com/schombert/BlankProject.git && touch flags/blank_project_cloned"
+
 rule clone_glfw
   command = cmd /c "git clone https://github.com/glfw/glfw.git && touch flags/glfw_cloned"
 
@@ -96,6 +99,8 @@ build cache/stb.o : ccpp stb_image/stb_image.c
 build flags/dcon_cloned : clone_dcon
 build DataContainer/CommonIncludes/common_types.cpp : phony flags/dcon_cloned
 build DCON.exe : compile_dcon flags/dcon_cloned
+
+build flags/blank_project_cloned : clone_blank_project
 
 build flags/dcon_lua_cloned : clone_dcon_lua
 build DCON_LUA.exe : compile_dcon_lua flags/dcon_lua_cloned
