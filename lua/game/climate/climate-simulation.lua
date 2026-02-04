@@ -1,0 +1,301 @@
+local sim = {}
+
+-- Some model constants
+local BASE_TEMPERATURE_DEVIATION = 0.0
+local BASE_RAINFALL_DEVIATION = 0.0
+local AXIAL_TILT_TEMPERATURE_DEVIATION = 0.0
+local HADLEY_CONTINENTALITY_DIVISOR = 0.05
+local HADLEY_TEMPERATURE_IMPACT = 6.0
+local OROGRAPHIC_LIFT_MULTIPLIER = 1.0
+local ITCZ_RAINFALL_IMPACT = 200.0
+local SEASONALITY_TEMPERATURE_BASE = 400.0 -- 100
+local SEASONALITY_RAINFALL_BASE = 200.0
+local AXIAL_TILT_SUMMER_TEMPERATURE_DIVISOR = 30.0
+local AXIAL_TILT_WINTER_TEMPERATURE_DIVISOR = 1.0
+local AXIAL_TILT_SUMMER_RAINFALL_DIVISOR = 10.0
+local AXIAL_TILT_WINTER_RAINFALL_DIVISOR = 40.0
+local MEDITERRANEAN_SUBTRACTION_CONSTANT = 0.05
+local MEDITERRANEAN_COAST_IMPACT_MULTIPLIER = 1.0
+
+local HUMIDITY_DISTANCE_TO_SEA_DIVISOR = 25.0
+local HUMIDITY_DISTANCE_TO_SEA_FACTOR = 0.25
+local HUMIDITY_RAINFALL_DIVISOR = 350.0
+local HUMIDITY_TEMPERATURE_DIVISOR = 50.0
+
+local WIND_SPEED_ELEVATION_CAP = 4500.0
+local WIND_SPEED_LATITUDE_DIVISOR = 40.0
+local WIND_SPEED_DISTANCE_TO_SEA_FACTOR = 1.0
+local WIND_SPEED_RAIN_SHADOW_FACTOR = 3.0
+local WIND_SPEED_ELEVATION_FACTOR = 8.0
+local WIND_SPEED_LATITUDE_FACTOR = 1.0
+local WIND_SPEED_CONTINENTALITY_FACTOR = 1.0
+local WIND_SPEED_HADLEY_FACTOR = 5.0
+local WIND_SPEED_MULTIPLIED_DISTANCE_AND_LATITUDE_FACTOR = 2.0
+
+local function simulate_climate()
+	--print("A")
+	local ut = require "game.climate.utils"
+
+	---@type climate_cell_id
+	for cell = 0, CLIMATE_CELL.size() - 1 do
+		local _, y = ut.get_x_y(cell);
+		-- 1:
+		-- HADLEY CELL DECREASES RAINFALL AND INCREASES TEMPERATURE
+		-- MORE SO IF WE ARE IN HIGHLY CONTINENTAL AREAS
+		-- 2:
+		-- ITCZ INCREASES RAINFALL IN THEIR RESPECTIVE MONTHS
+		-- 3:
+		-- HIGH CONTINENTALITY MAKES WINTERS COLDER AND SUMMER HOTTER
+		-- 4:
+		-- LOW CONTINENTALITY AND BEING CLOSE TO A COAST ADDS MORE RAINFALL
+		-- 5:
+		-- HIGH DISTANCE FROM COASTS INCREASES VARIATION IN RAINFALL
+		-- 6:
+		-- BASE TEMPERATURES AND RAINFALLS VARY WITH LATITUDE
+		-- 7:
+		-- RA IN SHADOWS ARE LESS IMPACTFUL NEARBY COASTS
+		-- 8:
+		-- RAIN SHADOWS CUT DOWN RAINFALL AND *INCREASE* TEMPERATURE
+		-- 9:
+		-- EXTRA DEPOSITS INCREASE RAINFALL AND *DECREASE* TEMPERATURE
+		-- 10:
+		-- ELEVATION DECREASES TEMPERATURE (APPLIED WHEN CLIMATE DATA IS WRITTEN TO TILES)
+		--print("B")
+		local jan_temp_base -- C
+		local jul_temp_base -- C
+		local jan_rain_base -- mm
+		local jul_rain_base -- m
+		local lat = ut.latitude_degrees(y) -- degrees
+		local lat_rad = ut.latitude(y)
+		local hadley_influence = CLIMATE_CELL.get_hadley_influence(cell) -- 0 - 1
+		hadley_influence = math.sqrt(math.sqrt(hadley_influence))
+		local med_influence = CLIMATE_CELL.get_med_influence(cell) --  0 - 1
+		local land_in_cell = 1 - CLIMATE_CELL.get_water_fraction(cell)
+		local extra_deposit = 0.0
+		local rain_shadow_drying_impact_multiplier = math.max(0.0, 1.0 - CLIMATE_CELL.get_true_rain_shadow(cell))
+		local itcz_jan_influence = CLIMATE_CELL.get_itcz_january(cell) * rain_shadow_drying_impact_multiplier -- 0 - 1
+		local itcz_jul_influence = CLIMATE_CELL.get_itcz_july(cell) * rain_shadow_drying_impact_multiplier --  0 - 1
+
+		-- Initialize rain and temperature
+		local lower
+		local higher
+		local latabs = math.abs(lat)
+		if latabs > 80.0 then
+			lower = -20.0 - (latabs - 80.0) * 10.0
+			higher = 0.0 - (latabs - 80.0) * 10.0
+		elseif latabs > 68.5 then
+			lower = -10.0 - (latabs - 68.5) / (80.0 - 68.5) * 10.0 -- -10 to -20
+			higher = 10.0 - (latabs - 68.5) / (80.0 - 68.5) * 10.0 -- 10 to 0
+		elseif latabs > 59.5 then
+			lower = -3.0 - (latabs - 59.5) / (68.5 - 59.5) * 7.0 -- -3 to -10
+			higher = 18.0 - (latabs - 59.5) / (68.5 - 59.5) * 8.0 -- 18 to 10
+		elseif latabs > 43.1 then
+			lower = 6.0 - (latabs - 43.1) / (59.5 - 43.1) * 9.0 -- 6 to -3
+			higher = 22.0 - (latabs - 43.1) / (59.5 - 43.1) * 4.0 -- 22 to 18
+		elseif latabs > 21.0 then
+			lower = 30.0 - (latabs - 21.0) / (43.1 - 21.0) * 24.0 -- 30 to 6
+			higher = 32.0 - (latabs - 21.0) / (43.1 - 21.0) * 10.0 -- 32 to 22
+		elseif latabs > 5.0 then
+			lower = 29.0 + (latabs - 5.0) / (21.0 - 5.0) * 1.0 -- 29 to 30
+			higher = 30.0 + (latabs - 5.0) / (21.0 - 5.0) * 2.0 -- 30 to 32
+		else
+			lower = 28.0 + latabs / 5.0 * 1.0 -- 28 to 29
+			higher = 28.0 + latabs / 5.0 * 2.0 -- 28 to 30
+		end
+		if lat > 0.0 then
+			jan_temp_base = BASE_TEMPERATURE_DEVIATION + lower
+				- AXIAL_TILT_TEMPERATURE_DEVIATION * math.abs(lat / 90.0)
+			jul_temp_base = BASE_TEMPERATURE_DEVIATION
+				+ higher + AXIAL_TILT_TEMPERATURE_DEVIATION * math.abs(lat / 90.0)
+		else
+			jan_temp_base = BASE_TEMPERATURE_DEVIATION
+				+ higher + AXIAL_TILT_TEMPERATURE_DEVIATION * math.abs(lat / 90.0)
+			jul_temp_base = BASE_TEMPERATURE_DEVIATION + lower
+				- AXIAL_TILT_TEMPERATURE_DEVIATION * math.abs(lat / 90.0)
+		end
+
+		--print("C")
+		jan_rain_base = math.max(0.0, BASE_RAINFALL_DEVIATION + 70.0) --25.0f + 90.1f * sigmoid(- 8 * lat_rad / math.PI) --  - 0.65f)
+		jul_rain_base = math.max(0.0, BASE_RAINFALL_DEVIATION + 70.0) --25.0f + 90.1f * sigmoid(8 * lat_rad / math.PI) --  - 0.65f)
+		---- Add some rain for lower latitudes to prevent large semi arid areas from happening
+		--if math.abs(lat) < 22.0 then
+		--	jan_rain_base = jan_rain_base + (math.abs(lat) / 20.0) * 10.0
+		--	jul_rain_base = jul_rain_base + (math.abs(lat) / 20.0) * 10.0
+		--end
+		--print("C1")
+		-- ITCZ
+		---[[
+		jul_rain_base = jul_rain_base + itcz_jul_influence * ITCZ_RAINFALL_IMPACT
+		jan_rain_base = jan_rain_base + itcz_jan_influence * ITCZ_RAINFALL_IMPACT
+		--]]
+		--print("C2")
+		-- CONTINENTALITY
+		---[[
+		-- Vary temperature based on continentality and distance to sea
+		local f = CLIMATE_CELL.get_true_continentality(cell)
+		local is_tropics = 1.0 - (math.pow(ut.sigmoid(7.0 * lat_rad), 6.0) + math.pow(ut.sigmoid(-7.0 * lat_rad), 6.0))
+		local is_temperate = 1.0 - is_tropics
+		f = 16.0 * f * f
+		-- manipulate the effect in certain latitudes
+		if latabs < 30.0 then
+			-- tropical zone
+			f = f * latabs / 30.0
+		end
+		if latabs > 75.0 then
+			-- polar vortex zone
+			local mulp = math.abs(latabs - 90.0) / 15.0
+			f = f * mulp * mulp * mulp
+		end
+		--print("C3")
+		-- Vary temperature and rain
+		local temp_diff = f * SEASONALITY_TEMPERATURE_BASE * is_temperate -- scale by how temperate the climate is
+		local rain_diff = f * SEASONALITY_RAINFALL_BASE * is_temperate
+		--print("C3a")
+		temp_diff = math.max(0, temp_diff)
+		temp_diff = math.min(40, temp_diff)
+		temp_diff = temp_diff * (1.0 - hadley_influence) -- multiply by hadley influence to "disable" the cooling in hadley affected areas!
+		--print("C3b")
+		if lat > 0.0 then
+			jan_temp_base = jan_temp_base - temp_diff / AXIAL_TILT_WINTER_TEMPERATURE_DIVISOR
+			jul_temp_base = jul_temp_base - temp_diff / AXIAL_TILT_SUMMER_TEMPERATURE_DIVISOR
+			jan_rain_base = jan_rain_base - rain_diff / AXIAL_TILT_WINTER_RAINFALL_DIVISOR
+			jul_rain_base = jul_rain_base - rain_diff / AXIAL_TILT_SUMMER_RAINFALL_DIVISOR
+		else
+			jan_temp_base = jan_temp_base - temp_diff / AXIAL_TILT_SUMMER_TEMPERATURE_DIVISOR
+			jul_temp_base = jul_temp_base - temp_diff / AXIAL_TILT_WINTER_TEMPERATURE_DIVISOR
+			jan_rain_base = jan_rain_base - rain_diff / AXIAL_TILT_SUMMER_RAINFALL_DIVISOR
+			jul_rain_base = jul_rain_base - rain_diff / AXIAL_TILT_WINTER_RAINFALL_DIVISOR
+		end
+		--print("C4")
+		jan_rain_base = math.max(0, jan_rain_base)
+		jul_rain_base = math.max(0, jul_rain_base)
+		--janTempBase += is_tropics * 1000;
+		--julTempBase += is_temperate * 1000;
+		-- Add extra dryness inside continents
+		--print("C5")
+		local cont_dryness = math.sqrt(CLIMATE_CELL.get_true_continentality(cell))
+		--print("C6")
+		jan_rain_base = jan_rain_base * (1.0 - math.min(0.9, cont_dryness))
+		jul_rain_base = jul_rain_base * (1.0 - math.min(0.9, cont_dryness))
+		--print("C7")
+		-- For drying out areas based only on distance to sea
+		local distance_to_sea = CLIMATE_CELL.get_distance_to_sea(cell)
+		jan_rain_base = jan_rain_base * (1.0 - math.min(0.9, math.max(0, (distance_to_sea - 10.0) / 75.0)))
+		jul_rain_base = jul_rain_base * (1.0 - math.min(0.9, math.max(0, (distance_to_sea - 10.0) / 75.0)))
+		--print("C8")
+		--]]
+		--print("D")
+		-- MED
+		---[[
+		-- Med climates have moist winters and cold summer
+		local val = math.max(0.0, med_influence - MEDITERRANEAN_SUBTRACTION_CONSTANT)
+		local q = CLIMATE_CELL.get_left_to_right_continentality(cell) * 30.0
+		local we_val = val
+		we_val = we_val * (1.0 - q)
+		we_val = math.max(0.0, we_val)
+		local ew_val = 0.0
+		if we_val < 0.1 then
+			ew_val = val
+			ew_val = ew_val * math.max(0, ew_val)
+			ew_val = ew_val * math.min(1, ew_val)
+		end
+		if lat > 0.0 then
+			jan_rain_base = jan_rain_base * (1.0 + (we_val - ew_val) * MEDITERRANEAN_COAST_IMPACT_MULTIPLIER)
+			jul_rain_base = jul_rain_base * (1.0 - (we_val - ew_val) * MEDITERRANEAN_COAST_IMPACT_MULTIPLIER)
+		else
+			jan_rain_base = jan_rain_base * (1.0 - (we_val - ew_val) * MEDITERRANEAN_COAST_IMPACT_MULTIPLIER)
+			jul_rain_base = jul_rain_base * (1.0 + (we_val - ew_val) * MEDITERRANEAN_COAST_IMPACT_MULTIPLIER)
+		end
+		--]]
+		--print("E")
+		-- Hadley
+		---[[
+		local cont_hadley_factor = math.min(1.0, CLIMATE_CELL.get_true_continentality(cell) / HADLEY_CONTINENTALITY_DIVISOR)
+		hadley_influence = hadley_influence * land_in_cell * (1.0 - math.max(0.0, itcz_jan_influence + itcz_jul_influence))
+		hadley_influence = hadley_influence * cont_hadley_factor
+		jan_temp_base = jan_temp_base + (hadley_influence * HADLEY_TEMPERATURE_IMPACT)
+		jul_temp_base = jul_temp_base + (hadley_influence * HADLEY_TEMPERATURE_IMPACT)
+		jan_rain_base = jan_rain_base * (1.0 - math.sqrt(math.sqrt(hadley_influence)))
+		jul_rain_base = jul_rain_base * (1.0 - math.sqrt(math.sqrt(hadley_influence)))
+		--]]
+
+		-- Rain shadows
+		---[[
+		jul_rain_base = jul_rain_base * rain_shadow_drying_impact_multiplier
+		jan_rain_base = jan_rain_base * rain_shadow_drying_impact_multiplier
+		jul_rain_base = jul_rain_base * rain_shadow_drying_impact_multiplier
+		jan_rain_base = jan_rain_base * rain_shadow_drying_impact_multiplier
+		-- Orographics lift
+		jul_rain_base = jul_rain_base + extra_deposit * OROGRAPHIC_LIFT_MULTIPLIER
+		jan_rain_base = jan_rain_base + extra_deposit * OROGRAPHIC_LIFT_MULTIPLIER
+		--]]
+
+		--print("F")
+		-- Write data!
+		--print(y, jan_rain_base, jan_temp_base, jul_rain_base, jul_temp_base)
+		CLIMATE_CELL.set_january_rainfall(cell, math.max(0, math.min(350, jan_rain_base)))
+		CLIMATE_CELL.set_july_rainfall(cell, math.max(0, math.min(350, jul_rain_base)))
+		CLIMATE_CELL.set_january_temperature(cell, jan_temp_base)
+		CLIMATE_CELL.set_july_temperature(cell, jul_rain_base)
+		--print("G")
+
+		--* Higher when plants are present,
+		--* Higher when rainfalls are higher,
+		--* Smaller when temperatures are high
+		--* Higher near coasts
+		local dist_factor = 1.0 - math.min(CLIMATE_CELL.get_distance_to_sea(cell) / HUMIDITY_DISTANCE_TO_SEA_DIVISOR, 1.0)
+		local fff = HUMIDITY_DISTANCE_TO_SEA_FACTOR
+
+		CLIMATE_CELL.set_january_humidity(cell,
+			fff * dist_factor + (1.0 - fff) * math.max(
+				CLIMATE_CELL.get_january_rainfall(cell) / HUMIDITY_RAINFALL_DIVISOR,
+				math.min(1.0, 1.0 - CLIMATE_CELL.get_january_temperature(cell) / HUMIDITY_TEMPERATURE_DIVISOR)
+			)
+		)
+
+
+		CLIMATE_CELL.set_july_humidity (
+			cell,
+			fff * dist_factor + (1.0 - fff) * math.max(
+				CLIMATE_CELL.get_july_rainfall(cell) / HUMIDITY_RAINFALL_DIVISOR,
+				math.min(1.0, 1.0 - CLIMATE_CELL.get_july_temperature(cell) / HUMIDITY_TEMPERATURE_DIVISOR)
+			)
+		)
+
+		--* Higher close to coasts
+		--* Lowered by high roughness and high vegetation
+		--* Almost nothing under itcz
+		--* Smaller with continentality
+		local elevation_factor = math.max(math.min(CLIMATE_CELL.get_elevation(cell), WIND_SPEED_ELEVATION_CAP), 0.0) / WIND_SPEED_ELEVATION_CAP
+		elevation_factor = elevation_factor * elevation_factor
+
+		local lat_factor = math.min(1.0, math.abs(lat / WIND_SPEED_LATITUDE_DIVISOR))
+
+		local base_wind = dist_factor * WIND_SPEED_DISTANCE_TO_SEA_FACTOR
+			+ (1.0 - rain_shadow_drying_impact_multiplier) * WIND_SPEED_RAIN_SHADOW_FACTOR
+			+ elevation_factor * WIND_SPEED_ELEVATION_FACTOR
+			+ lat_factor * WIND_SPEED_LATITUDE_FACTOR
+			+ CLIMATE_CELL.get_true_continentality(cell) * WIND_SPEED_CONTINENTALITY_FACTOR
+			+ hadley_influence * WIND_SPEED_HADLEY_FACTOR
+			+ dist_factor * lat_factor * WIND_SPEED_MULTIPLIED_DISTANCE_AND_LATITUDE_FACTOR
+
+		--* Lack of ITCZ = wind
+		local itcz_factor = 1.0 - 0.9 * (itcz_jan_influence + itcz_jul_influence) / 2.0
+		itcz_factor = itcz_factor * itcz_factor
+
+		CLIMATE_CELL.set_january_wind_speed(cell, base_wind * itcz_factor)
+		CLIMATE_CELL.set_july_wind_speed(cell, base_wind * itcz_factor)
+	end
+end
+
+function sim.run()
+	require "game.climate.buffer-tile-data".run()
+	simulate_climate()
+end
+
+function sim.run_hex(world)
+	require "game.climate.buffer-tile-data".run_hex(world)
+	simulate_climate()
+end
+
+return sim
