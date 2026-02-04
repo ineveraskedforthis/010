@@ -1,0 +1,8 @@
+display_name = "English (US)"
+script = Latn
+
+body_font = LibreCaslonText-Regular.ttf
+
+header_font = SourceSerif4Subhead-Regular.otf
+
+rtl = no

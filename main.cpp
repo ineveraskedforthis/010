@@ -34,6 +34,16 @@
 #define DCON_LUADLL_EXPORTS
 #include "export_ifdefs.hpp"
 
+#include "uitemplate.hpp"
+#include "AliceUIEditor/project_description.hpp"
+
+#include "from_alice_editor_main.hpp"
+
+namespace ogl {
+inline texture::texture(texture const& other) noexcept {
+}
+}
+
 // https://stackoverflow.com/a/16323388/10281950
 static int traceback(lua_State *L) {
 	lua_getfield(L, LUA_GLOBALSINDEX, "debug");
@@ -806,9 +816,11 @@ struct shader_2d_data {
 	GLuint aspect_ratio;
 };
 
-game::state world {};
-game::text_collection game_text {};
+static game::state world {};
+static game::text_collection game_text {};
+
 dcon::data_container state {};
+
 
 uint32_t new_text(dcon::data_container& state, game::text_collection& collection, int32_t text_len, const char* data) {
 	auto new_start = collection.text.size();
@@ -994,8 +1006,46 @@ void render_portrait(dcon::data_container& state, game::text_collection& assets,
 	}
 }
 
-int main(void)
-{
+open_project_t bytes_to_project(serialization::in_buffer& buffer);
+
+static open_project_t example_ui_project {};
+static template_project::project ui_templates {};
+
+int main(void) {
+	simple_fs::file_system common_fs {};
+	simple_fs::add_root(common_fs, NATIVE("./"));
+	auto root = get_root(common_fs);
+	auto assets = simple_fs::open_directory(root, NATIVE("assets"));
+
+	auto example = simple_fs::open_file(assets, NATIVE("example_window.aui"));
+	auto example_content = view_contents(*example);
+	serialization::in_buffer example_buffer(example_content.data, example_content.file_size);
+	example_ui_project = bytes_to_project(example_buffer);
+	// example_ui_project.project_name = rem.substr(0, ext_pos);
+	example_ui_project.project_directory = NATIVE("./assets/");
+
+
+	auto uitemplates = simple_fs::open_file(assets, NATIVE("the.tui"));
+	auto content = view_contents(*uitemplates);
+	serialization::in_buffer buffer(content.data, content.file_size);
+	ui_templates = template_project::bytes_to_project(buffer);
+
+	asvg::file_bank svg_image_files {};
+	svg_image_files.root_directory =  example_ui_project.project_directory + simple_fs::utf16_to_native(ui_templates.svg_directory);
+
+	// ui_templates.project_name = rem.substr(0, ext_pos);
+	// ui_templates.project_directory = example_ui_project.project_directory;
+	for(auto& i : ui_templates.icons) {
+		simple_fs::file loaded_file{ svg_image_files.root_directory + simple_fs::utf8_to_native(i.file_name) };
+		i.renders = asvg::simple_svg(loaded_file.content.data, size_t(loaded_file.content.file_size));
+	}
+	for(auto& b : ui_templates.backgrounds) {
+		simple_fs::file loaded_file{ svg_image_files.root_directory + simple_fs::utf8_to_native(b.file_name) };
+		b.renders = asvg::svg(loaded_file.content.data, size_t(loaded_file.content.file_size), b.base_x, b.base_y);
+	}
+
+
+
 	glfwSetErrorCallback(error_callback);
 	if (!glfwInit())
 		return -1;
@@ -1058,6 +1108,9 @@ int main(void)
 	glm::vec3 ambient = glm::vec3(0.2f, 0.2f, 0.4f);
 	glClearColor(ambient.x, ambient.y, ambient.z, 0.f);
 
+	// load alice ui shader
+	load_shaders();
+	load_global_squares();
 
 	// setting up a basic shader
 	std::string shader_2d_vertex_path = "./shaders/basic_shader_flat.vert";
@@ -2522,6 +2575,34 @@ int main(void)
 			);
 			*/
 		});
+
+		assert_no_errors();
+
+		use_program(width, height);
+		auto& win = example_ui_project.windows[0];
+		if (win.wrapped.x_size == 0) {
+			render_window(
+				common_fs,
+				svg_image_files,
+				example_ui_project,
+				ui_templates,
+				win,
+				50, 50,
+				false,
+				1.f
+			);
+		} else {
+			render_window(
+				common_fs,
+				svg_image_files,
+				example_ui_project,
+				ui_templates,
+				win,
+				win.wrapped.x_size, win.wrapped.y_size,
+				false,
+				1.f
+			);
+		}
 
 		assert_no_errors();
 

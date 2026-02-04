@@ -1,13 +1,33 @@
 cpp_compiler = clang++
+c_compiler = clang
 cpp_standard = -std=c++20
 optimisation_flag = -O0
 debug_flags = -g -gdwarf-3 -gcodeview
 debug_flags_link = -g -gdwarf-3
 dcon_includes_common = -I./DataContainer/CommonIncludes
 dcon_includes = -I./DataContainer/DataContainerGenerator
+blank_includes = -I./BlankProject/src -I./BlankProject/src/gamestate -I./BlankProject/src/window -I./BlankProject/src/common_types -I./BlankProject/src/graphics -I./BlankProject/build/_deps/harfbuzz-src/src  -I./BlankProject/src/filesystem -I./BlankProject/src/text -I./BlankProject/build/_deps/freetype-src/include  -I./BlankProject/src/gui -I./BlankProject/src/sound -I./BlankProject/src/lunasvg -I./stb_image
 
-includes = -I./glfw/include -I./glew-cmake/include -I./imgui -I./glm $dcon_includes_common -I./LuaJIT/src
-libs = -l./glfw/build/src/glfw3 -l./glew-cmake/build/lib/libglew32d -lUser32.lib -lShell32 -lGdi32 -lopengl32 -l./LuaJIT/src/lua51
+lunasvg_includes = -I./BlankProject/src/lunasvg -I./stb_image
+
+includes = -I./ -I./glfw/include -I./glew-cmake/include -I./imgui -I./glm $dcon_includes_common -I./LuaJIT/src
+libs = -l./glfw/build/src/glfw3 -l./glew-cmake/build/lib/libglew32d -lUser32.lib -lShell32 -lGdi32 -lopengl32 -l./LuaJIT/src/lua51 -lOle32
+
+rule ccpp_game
+  command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -mavx2 -MD -MF $out.d $includes $blank_includes -c $in -o $out
+  description = compile $out
+  depfile = $out.d
+
+
+rule ccpp_lunasvg
+  command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -mavx2 -MD -MF $out.d $includes $lunasvg_includes -c $in -o $out
+  description = compile $out
+  depfile = $out.d
+
+rule cc_lunasvg
+  command = $c_compiler $optimisation_flag $debug_flags -mavx2 -MD -MF $out.d $includes $lunasvg_includes -c $in -o $out
+  description = compile $out
+  depfile = $out.d
 
 rule ccpp
   command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -mavx2 -MD -MF $out.d $includes -c $in -o $out
@@ -38,7 +58,18 @@ rule use_dcon_lua
   restat = 1
 
 rule clone_blank_project
-  command = cmd /c "git clone https://github.com/schombert/BlankProject.git && touch flags/blank_project_cloned"
+  command = cmd /c "git clone https://github.com/ineveraskedforthis/BlankProject.git || (cd BlankProject && git pull origin && cd ..) && touch flags/blank_project_cloned"
+
+rule configure_blank_project
+  command = cmd /c "cd BlankProject && mkdir build || cd build && cmake .. -G "Ninja" -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++ && touch ../../flags/blank_project_configured"
+
+rule clone_alice_ui_editor
+  command = cmd /c "git clone https://github.com/ineveraskedforthis/AliceUIEditor.git || (cd AliceUIEditor && git pull origin && cd ..) && touch flags/alice_ui_editor_cloned"
+
+build flags/alice_ui_editor_cloned : clone_alice_ui_editor
+
+build AliceUIEditor/project_description.hpp : phony flags/alice_ui_editor_cloned
+build AliceUIEditor/texture.cpp : phony flags/alice_ui_editor_cloned
 
 rule clone_glfw
   command = cmd /c "git clone https://github.com/glfw/glfw.git && touch flags/glfw_cloned"
@@ -94,13 +125,62 @@ build cache/imgui_backend.o: ccpp imgui/backends/imgui_impl_glfw.cpp | flags/img
 build cache/imgui_backend_gl.o: ccpp imgui/backends/imgui_impl_opengl3.cpp | flags/imgui_cloned
 build cache/imgui_stdlib.o: ccpp imgui/misc/cpp/imgui_stdlib.cpp | flags/imgui_cloned
 
-build cache/stb.o : ccpp stb_image/stb_image.c
+#build cache/stb.o : ccpp stb_image/stb_image.c
 
 build flags/dcon_cloned : clone_dcon
 build DataContainer/CommonIncludes/common_types.cpp : phony flags/dcon_cloned
 build DCON.exe : compile_dcon flags/dcon_cloned
 
-build flags/blank_project_cloned : clone_blank_project
+build flags/blank_project_cloned | BlankProject/src/filesystem/simple_fs_win.cpp BlankProject/src/filesystem/simple_fs_nix.cpp BlankProject/src/gamestate/uitemplate_serialization.cpp : clone_blank_project
+build flags/blank_project_configured : configure_blank_project | flags/blank_project_cloned
+
+build BlankProject/src/graphics/asvg.cpp : phony flags/blank_project_cloned
+
+build BlankProject/src/lunasvg/graphics.cpp : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/lunasvg.cpp : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/svgelement.cpp : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/svggeometryelement.cpp : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/svglayoutstate.cpp : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/svgpaintelement.cpp : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/svgparser.cpp : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/svgproperty.cpp : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/svgrenderstate.cpp : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/svgtextelement.cpp : phony flags/blank_project_cloned
+
+build cache/lunasvg/graphics.o : ccpp_lunasvg BlankProject/src/lunasvg/graphics.cpp
+build cache/lunasvg/lunasvg.o : ccpp_lunasvg BlankProject/src/lunasvg/lunasvg.cpp
+build cache/lunasvg/svgelement.o : ccpp_lunasvg BlankProject/src/lunasvg/svgelement.cpp
+build cache/lunasvg/svggeometryelement.o : ccpp_lunasvg BlankProject/src/lunasvg/svggeometryelement.cpp
+build cache/lunasvg/svglayoutstate.o : ccpp_lunasvg BlankProject/src/lunasvg/svglayoutstate.cpp
+build cache/lunasvg/svgpaintelement.o : ccpp_lunasvg BlankProject/src/lunasvg/svgpaintelement.cpp
+build cache/lunasvg/svgparser.o : ccpp_lunasvg BlankProject/src/lunasvg/svgparser.cpp
+build cache/lunasvg/svgproperty.o : ccpp_lunasvg BlankProject/src/lunasvg/svgproperty.cpp
+build cache/lunasvg/svgrenderstate.o : ccpp_lunasvg BlankProject/src/lunasvg/svgrenderstate.cpp
+build cache/lunasvg/svgtextelement.o : ccpp_lunasvg BlankProject/src/lunasvg/svgtextelement.cpp
+
+build BlankProject/src/lunasvg/plutovg-blend.c : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/plutovg-canvas.c : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/plutovg-font.c : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/plutovg-ft-math.c : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/plutovg-ft-raster.c : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/plutovg-ft-stroker.c : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/plutovg-matrix.c : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/plutovg-paint.c : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/plutovg-path.c : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/plutovg-rasterize.c : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/plutovg-surface.c : phony flags/blank_project_cloned
+
+build cache/lunasvg/plutovg-blend.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-blend.c
+build cache/lunasvg/plutovg-canvas.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-canvas.c
+build cache/lunasvg/plutovg-font.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-font.c
+build cache/lunasvg/plutovg-ft-math.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-ft-math.c
+build cache/lunasvg/plutovg-ft-raster.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-ft-raster.c
+build cache/lunasvg/plutovg-ft-stroker.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-ft-stroker.c
+build cache/lunasvg/plutovg-matrix.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-matrix.c
+build cache/lunasvg/plutovg-paint.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-paint.c
+build cache/lunasvg/plutovg-path.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-path.c
+build cache/lunasvg/plutovg-rasterize.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-rasterize.c
+build cache/lunasvg/plutovg-surface.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-surface.c
 
 build flags/dcon_lua_cloned : clone_dcon_lua
 build DCON_LUA.exe : compile_dcon_lua flags/dcon_lua_cloned
@@ -111,8 +191,17 @@ build lua-export.hpp : use_dcon_lua ./data.txt | DCON_LUA.exe
 build cache/dcon_common.o : ccpp DataContainer/CommonIncludes/common_types.cpp | flags/dcon_cloned
 build cache/frustum.o : ccpp frustum.cpp | flags/glm_cloned
 
-build cache/main.o : ccpp main.cpp | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp
+build cache/main.o : ccpp_game main.cpp | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp flags/blank_project_configured AliceUIEditor/project_description.hpp
 
-build cache/sote_functions.o : ccpp sote_functions.cpp | data.hpp lua-export.hpp
+build cache/render_alice_ui.o : ccpp_game from_alice_editor_main.cpp | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp flags/blank_project_configured AliceUIEditor/project_description.hpp
 
-build 010.exe : link cache/main.o cache/frustum.o cache/dcon_common.o cache/stb.o cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o cache/imgui_draw.o cache/imgui.o cache/sote_functions.o | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib
+build cache/sote_functions.o : ccpp_game sote_functions.cpp | data.hpp lua-export.hpp flags/blank_project_configured
+
+build cache/simple_fs.o : ccpp_game BlankProject/src/filesystem/simple_fs_win.cpp | data.hpp
+build cache/templates_loading.o : ccpp_game BlankProject/src/gamestate/uitemplate_serialization.cpp | data.hpp
+build cache/asvg.o : ccpp_game BlankProject/src/graphics/asvg.cpp
+build cache/texture.o : ccpp_game BlankProject/src/graphics/texture.cpp
+build cache/texture_editor.o : ccpp_game AliceUIEditor/texture.cpp
+build cache/read_ui_files.o : ccpp_game AliceUIEditor/project_file_writing.cpp
+
+build 010.exe : link cache/read_ui_files.o cache/texture.o cache/lunasvg/plutovg-surface.o cache/render_alice_ui.o cache/lunasvg/svgtextelement.o cache/lunasvg/lunasvg.o cache/lunasvg/graphics.o cache/lunasvg/svggeometryelement.o cache/lunasvg/svgelement.o cache/lunasvg/svgrenderstate.o cache/lunasvg/svgproperty.o cache/main.o cache/lunasvg/svgparser.o cache/lunasvg/svgpaintelement.o cache/lunasvg/svglayoutstate.o cache/lunasvg/plutovg-canvas.o cache/lunasvg/plutovg-blend.o cache/lunasvg/plutovg-rasterize.o cache/lunasvg/plutovg-path.o cache/lunasvg/plutovg-paint.o cache/lunasvg/plutovg-matrix.o cache/lunasvg/plutovg-ft-stroker.o cache/lunasvg/plutovg-ft-raster.o cache/lunasvg/plutovg-ft-math.o cache/simple_fs.o cache/templates_loading.o cache/asvg.o cache/frustum.o cache/dcon_common.o cache/lunasvg/plutovg-font.o cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o cache/imgui_draw.o cache/imgui.o cache/sote_functions.o | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib

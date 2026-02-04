@@ -1,5 +1,66 @@
+global{no-conversions}
 include{"sote_types.hpp"}
+include{"hb.h"}
 load_save{name{everything}}
+
+make_index{text_key}{uint32_t}
+make_index{texture_id}{uint16_t}
+make_index{gfx_object_id}{uint16_t}
+
+object {
+	name{ locale }
+	storage_type{ contiguous }
+	size{ 2000 }
+
+	property{
+		name{ native_rtl }
+		type{ bitfield }
+	}
+	property{
+		name{ display_name }
+		type{vector_pool{5000}{uint8_t}}
+	}
+	property{
+		name{ locale_name }
+		type{vector_pool{5000}{uint8_t}}
+	}
+	property{
+		name{ fallback }
+		type{vector_pool{5000}{uint8_t}}
+	}
+	property{
+		name{ resolved_language }
+		type{ hb_language_t }
+	}
+	property{
+		name{ hb_script }
+		type{ uint32_t }
+	}
+	property{
+		name{ resolved_body_font }
+		type{ uint16_t }
+	}
+	property{
+		name{ resolved_header_font }
+		type{ uint16_t }
+	}
+	property{
+		name{ body_font }
+		type{vector_pool{5000}{uint8_t}}
+	}
+	property{
+		name{ header_font }
+		type{vector_pool{5000}{uint8_t}}
+	}
+	property{
+		name{ body_font_features }
+		type{vector_pool{1000}{uint32_t}}
+	}
+	property{
+		name{ header_font_features }
+		type{vector_pool{1000}{uint32_t}}
+	}
+}
 object {
 	name { tile }
 	storage_type { contiguous }
