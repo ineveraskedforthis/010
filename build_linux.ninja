@@ -39,13 +39,13 @@ rule link
   description = link $out
 
 rule clone_dcon
-  command = cmd /c "(git clone -b to_upstream --single-branch https://github.com/ineveraskedforthis/DataContainer.git) || (cd DataContainer && git pull origin master && cd ..) && touch flags/dcon_cloned"
+  command = (git clone -b to_upstream --single-branch https://github.com/ineveraskedforthis/DataContainer.git) || (cd DataContainer && git pull origin master && cd ..) && touch flags/dcon_cloned
 
 rule compile_dcon
   command = $cpp_compiler $cpp_standard $dcon_includes $dcon_includes_common -ferror-limit=1 DataContainer/DataContainerGenerator/DataContainerGenerator.cpp DataContainer/DataContainerGenerator/parsing.cpp DataContainer/DataContainerGenerator/code_fragments.cpp DataContainer/DataContainerGenerator/query_fragments.cpp DataContainer/DataContainerGenerator/object_member_fragments.cpp DataContainer/DataContainerGenerator/serialize_fragments.cpp -o $out
 
 rule clone_dcon_lua
-  command = cmd /c "(git clone -b allow-creation --single-branch  https://github.com/ineveraskedforthis/DataContainer-Lua.git) || (cd DataContainer-Lua && git pull origin allow-creation && git checkout allow-creation  && cd ..) && touch flags/dcon_lua_cloned"
+  command = (git clone -b allow-creation --single-branch  https://github.com/ineveraskedforthis/DataContainer-Lua.git) || (cd DataContainer-Lua && git pull origin allow-creation && git checkout allow-creation  && cd ..) && touch flags/dcon_lua_cloned
 rule compile_dcon_lua
   command = $cpp_compiler $cpp_standard $dcon_includes $dcon_includes_common -ferror-limit=1 DataContainer-Lua/src/LuaFFIGenerator.cpp DataContainer-Lua/src/parser/parsing.cpp -o $out
 
@@ -58,13 +58,13 @@ rule use_dcon_lua
   restat = 1
 
 rule clone_blank_project
-  command = cmd /c "git clone https://github.com/ineveraskedforthis/BlankProject.git || (cd BlankProject && git pull origin && cd ..) && touch flags/blank_project_cloned"
+  command = git clone https://github.com/ineveraskedforthis/BlankProject.git || (cd BlankProject && git pull origin && cd ..) && touch flags/blank_project_cloned
 
 rule configure_blank_project
-  command = cmd /c "cd BlankProject && mkdir build || cd build && cmake .. -G "Ninja" -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++ && touch ../../flags/blank_project_configured"
+  command = cd BlankProject && mkdir build ; cd build && cmake .. -G "Ninja" -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++ && touch ../../flags/blank_project_configured
 
 rule clone_alice_ui_editor
-  command = cmd /c "git clone https://github.com/ineveraskedforthis/AliceUIEditor.git || (cd AliceUIEditor && git pull origin && cd ..) && touch flags/alice_ui_editor_cloned"
+  command = git clone https://github.com/ineveraskedforthis/AliceUIEditor.git || (cd AliceUIEditor && git pull origin && cd ..) && touch flags/alice_ui_editor_cloned
 
 build flags/alice_ui_editor_cloned : clone_alice_ui_editor
 
@@ -73,28 +73,28 @@ build AliceUIEditor/texture.cpp : phony flags/alice_ui_editor_cloned
 build AliceUIEditor/project_file_writing.cpp : phony flags/alice_ui_editor_cloned
 
 rule clone_glfw
-  command = cmd /c "git clone https://github.com/glfw/glfw.git && touch flags/glfw_cloned"
+  command = git clone https://github.com/glfw/glfw.git && touch flags/glfw_cloned
 
 rule configure_glfw
-  command = cmd /c "cd glfw && mkdir build & cd build && cmake .. -G "Ninja" -D CMAKE_C_COMPILER=clang -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch ../../flags/glfw_configured"
+  command = cd glfw && mkdir build ; cd build && cmake .. -G "Ninja" -D CMAKE_C_COMPILER=clang -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch ../../flags/glfw_configured
 
 rule build_glfw
-  command = cmd /c "cd glfw/build && cmake --build ."
+  command = cd glfw/build && cmake --build .
 
 rule clone_glew
-  command = cmd /c "git clone https://github.com/Perlmint/glew-cmake.git && touch flags/glew_cloned"
+  command = git clone https://github.com/Perlmint/glew-cmake.git && touch flags/glew_cloned
 
 rule configure_glew
-  command = cmd /c "cd glew-cmake && cd build && cmake ./cmake -G "Ninja" -D CMAKE_C_COMPILER=clang -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch ../../flags/glew_configured"
+  command = cd glew-cmake && cd build && cmake ./cmake -G "Ninja" -D CMAKE_C_COMPILER=clang -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch ../../flags/glew_configured
 
 rule build_glew
-  command = cmd /c "cd glew-cmake/build && cmake --build ."
+  command = cd glew-cmake/build && cmake --build .
 
 rule clone_glm
-  command = cmd /c "git clone https://github.com/g-truc/glm.git && touch flags/glm_cloned"
+  command = git clone https://github.com/g-truc/glm.git && touch flags/glm_cloned
 
 rule clone_imgui
-  command = cmd /c "git clone https://github.com/ocornut/imgui.git && touch flags/imgui_cloned"
+  command = git clone https://github.com/ocornut/imgui.git && touch flags/imgui_cloned
 
 build flags/glfw_cloned : clone_glfw
 build flags/glfw_configured : configure_glfw flags/glfw_cloned
@@ -113,8 +113,8 @@ build imgui/imgui_draw.cpp : phony flags/imgui_cloned
 build imgui/imgui_demo.cpp : phony flags/imgui_cloned
 build imgui/imgui_tables.cpp : phony flags/imgui_cloned
 build imgui/imgui_widgets.cpp : phony flags/imgui_cloned
-build imgui/backends/imgui_impl_glfw.cpp : phony flags/imgui_cloned
-build imgui/backends/imgui_impl_opengl3.cpp : phony flags/imgui_cloned
+build imgui/backends/imgui_impl_glfw.cpp : phony flags/imgui_cloned | flags/glfw_configured
+build imgui/backends/imgui_impl_opengl3.cpp : phony flags/imgui_cloned | flags/glew_configured
 build imgui/misc/cpp/imgui_stdlib.cpp : phony flags/imgui_cloned
 
 build cache/imgui.o: ccpp imgui/imgui.cpp | flags/imgui_cloned
@@ -130,7 +130,7 @@ build cache/imgui_stdlib.o: ccpp imgui/misc/cpp/imgui_stdlib.cpp | flags/imgui_c
 
 build flags/dcon_cloned : clone_dcon
 build DataContainer/CommonIncludes/common_types.cpp : phony flags/dcon_cloned
-build DCON.exe : compile_dcon flags/dcon_cloned
+build DCON : compile_dcon flags/dcon_cloned
 
 build flags/blank_project_cloned | BlankProject/src/filesystem/simple_fs_win.cpp BlankProject/src/filesystem/simple_fs_nix.cpp BlankProject/src/gamestate/uitemplate_serialization.cpp : clone_blank_project
 build flags/blank_project_configured : configure_blank_project | flags/blank_project_cloned
@@ -185,10 +185,10 @@ build cache/lunasvg/plutovg-rasterize.o : cc_lunasvg BlankProject/src/lunasvg/pl
 build cache/lunasvg/plutovg-surface.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-surface.c
 
 build flags/dcon_lua_cloned : clone_dcon_lua
-build DCON_LUA.exe : compile_dcon_lua flags/dcon_lua_cloned
+build DCON_LUA : compile_dcon_lua flags/dcon_lua_cloned
 
-build data.hpp | data_ids.hpp : use_dcon ./data.txt | DCON.exe
-build lua-export.hpp : use_dcon_lua ./data.txt | DCON_LUA.exe
+build data.hpp | data_ids.hpp : use_dcon ./data.txt | DCON
+build lua-export.hpp : use_dcon_lua ./data.txt | DCON_LUA
 
 build cache/dcon_common.o : ccpp DataContainer/CommonIncludes/common_types.cpp | flags/dcon_cloned
 build cache/frustum.o : ccpp frustum.cpp | flags/glm_cloned
