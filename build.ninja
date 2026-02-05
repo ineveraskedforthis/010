@@ -34,6 +34,25 @@ rule ccpp
   description = compile $out
   depfile = $out.d
 
+rule ccpp_freetype
+  command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -mavx2 -MD -MF $out.d $freetype_includes -c $in -o $out
+  description = compile $out
+  depfile = $out.d
+
+build BlankProject/build/_deps/freetype-src/src/base/ftsystem.c : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype-src/src/base/ftinit.c : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype-src/src/base/ftdebug.c : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype-src/src/base/ftbase.c : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype-src/src/base/ftbbox.c : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype-src/src/base/ftglyph.c : phony flags/blank_project_configured
+
+build cache/ftsystem.o : ccpp_freetype BlankProject/build/_deps/freetype-src/src/base/ftsystem.c
+build cache/ftinit.o : ccpp_freetype BlankProject/build/_deps/freetype-src/src/base/ftinit.c
+build cache/ftdebug.o : ccpp_freetype BlankProject/build/_deps/freetype-src/src/base/ftdebug.c
+build cache/ftbase.o : ccpp_freetype BlankProject/build/_deps/freetype-src/src/base/ftbase.c
+build cache/ftbbox.o : ccpp_freetype BlankProject/build/_deps/freetype-src/src/base/ftbbox.c
+build cache/ftglyph.o : ccpp_freetype BlankProject/build/_deps/freetype-src/src/base/ftglyph.c
+
 rule link
   command = $cpp_compiler $cpp_standard $debug_flags_link $in $libs -mavx2 -o $out -Xlinker /subsystem:console
   description = link $out
@@ -61,7 +80,10 @@ rule clone_blank_project
   command = cmd /c "git clone https://github.com/ineveraskedforthis/BlankProject.git || (cd BlankProject && git pull origin && cd ..) && touch flags/blank_project_cloned"
 
 rule configure_blank_project
-  command = cmd /c "cd BlankProject && mkdir build || cd build && cmake .. -G "Ninja" -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++ && touch ../../flags/blank_project_configured"
+  command = cmd /c "cd BlankProject && mkdir build || cd build && cmake .. -G Ninja -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++ && touch ../../flags/blank_project_configured"
+
+rule configure_freetype
+  command = cmd /c "cd BlankProject/build && cmake --build ."
 
 rule clone_alice_ui_editor
   command = cmd /c "git clone https://github.com/ineveraskedforthis/AliceUIEditor.git || (cd AliceUIEditor && git pull origin && cd ..) && touch flags/alice_ui_editor_cloned"
@@ -134,6 +156,8 @@ build DCON.exe : compile_dcon flags/dcon_cloned
 build flags/blank_project_cloned | BlankProject/src/filesystem/simple_fs_win.cpp BlankProject/src/filesystem/simple_fs_nix.cpp BlankProject/src/gamestate/uitemplate_serialization.cpp : clone_blank_project
 build flags/blank_project_configured : configure_blank_project | flags/blank_project_cloned
 
+build BlankProject/src/text/fonts.cpp : phony flags/blank_project_cloned
+
 build BlankProject/src/graphics/asvg.cpp : phony flags/blank_project_cloned
 
 build BlankProject/src/lunasvg/graphics.cpp : phony flags/blank_project_cloned
@@ -191,9 +215,9 @@ build lua-export.hpp : use_dcon_lua ./data.txt | DCON_LUA.exe
 build cache/dcon_common.o : ccpp DataContainer/CommonIncludes/common_types.cpp | flags/dcon_cloned
 build cache/frustum.o : ccpp frustum.cpp | flags/glm_cloned
 
-build cache/main.o : ccpp_game main.cpp | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp flags/blank_project_configured AliceUIEditor/project_description.hpp
+build cache/main.o : ccpp_game main.cpp | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp flags/blank_project_configured
 
-build cache/render_alice_ui.o : ccpp_game from_alice_editor_main.cpp | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp flags/blank_project_configured AliceUIEditor/project_description.hpp
+build cache/render_alice_ui.o : ccpp_game from_alice_editor_main.cpp | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp flags/blank_project_configured
 
 build cache/sote_functions.o : ccpp_game sote_functions.cpp | data.hpp lua-export.hpp flags/blank_project_configured
 
@@ -201,7 +225,9 @@ build cache/simple_fs.o : ccpp_game BlankProject/src/filesystem/simple_fs_win.cp
 build cache/templates_loading.o : ccpp_game BlankProject/src/gamestate/uitemplate_serialization.cpp | data.hpp
 build cache/asvg.o : ccpp_game BlankProject/src/graphics/asvg.cpp
 build cache/texture.o : ccpp_game BlankProject/src/graphics/texture.cpp
-build cache/texture_editor.o : ccpp_game AliceUIEditor/texture.cpp
-build cache/read_ui_files.o : ccpp_game AliceUIEditor/project_file_writing.cpp
+build cache/read_ui_files.o : ccpp_game project_file_writing.cpp
+build cache/fonts.o : ccpp_game BlankProject/src/text/fonts.cpp | data.hpp
 
-build 010.exe : link cache/read_ui_files.o cache/texture.o cache/lunasvg/plutovg-surface.o cache/render_alice_ui.o cache/lunasvg/svgtextelement.o cache/lunasvg/lunasvg.o cache/lunasvg/graphics.o cache/lunasvg/svggeometryelement.o cache/lunasvg/svgelement.o cache/lunasvg/svgrenderstate.o cache/lunasvg/svgproperty.o cache/main.o cache/lunasvg/svgparser.o cache/lunasvg/svgpaintelement.o cache/lunasvg/svglayoutstate.o cache/lunasvg/plutovg-canvas.o cache/lunasvg/plutovg-blend.o cache/lunasvg/plutovg-rasterize.o cache/lunasvg/plutovg-path.o cache/lunasvg/plutovg-paint.o cache/lunasvg/plutovg-matrix.o cache/lunasvg/plutovg-ft-stroker.o cache/lunasvg/plutovg-ft-raster.o cache/lunasvg/plutovg-ft-math.o cache/simple_fs.o cache/templates_loading.o cache/asvg.o cache/frustum.o cache/dcon_common.o cache/lunasvg/plutovg-font.o cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o cache/imgui_draw.o cache/imgui.o cache/sote_functions.o | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib
+
+
+build 010.exe : link cache/ftsystem.o cache/ftinit.o cache/ftdebug.o cache/ftbase.o cache/ftbbox.o cache/fonts.o cache/ftglyph.o cache/read_ui_files.o cache/texture.o cache/lunasvg/plutovg-surface.o cache/render_alice_ui.o cache/lunasvg/svgtextelement.o cache/lunasvg/lunasvg.o cache/lunasvg/graphics.o cache/lunasvg/svggeometryelement.o cache/lunasvg/svgelement.o cache/lunasvg/svgrenderstate.o cache/lunasvg/svgproperty.o cache/main.o cache/lunasvg/svgparser.o cache/lunasvg/svgpaintelement.o cache/lunasvg/svglayoutstate.o cache/lunasvg/plutovg-canvas.o cache/lunasvg/plutovg-blend.o cache/lunasvg/plutovg-rasterize.o cache/lunasvg/plutovg-path.o cache/lunasvg/plutovg-paint.o cache/lunasvg/plutovg-matrix.o cache/lunasvg/plutovg-ft-stroker.o cache/lunasvg/plutovg-ft-raster.o cache/lunasvg/plutovg-ft-math.o cache/simple_fs.o cache/templates_loading.o cache/asvg.o cache/frustum.o cache/dcon_common.o cache/lunasvg/plutovg-font.o cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o cache/imgui_draw.o cache/imgui.o cache/sote_functions.o | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib

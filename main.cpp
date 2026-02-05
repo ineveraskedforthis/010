@@ -35,14 +35,10 @@
 #include "export_ifdefs.hpp"
 
 #include "uitemplate.hpp"
-#include "AliceUIEditor/project_description.hpp"
+#include "project_description.hpp"
 
 #include "from_alice_editor_main.hpp"
-
-namespace ogl {
-inline texture::texture(texture const& other) noexcept {
-}
-}
+#include "fonts.hpp"
 
 // https://stackoverflow.com/a/16323388/10281950
 static int traceback(lua_State *L) {
@@ -92,6 +88,9 @@ int rgb_to_id(int r, int g, int b) {
 	return r + 256 * g + 256 * 256 * b;
 }
 
+struct settings {
+	float ui_scale;
+};
 
 namespace game {
 
@@ -1008,272 +1007,869 @@ void render_portrait(dcon::data_container& state, game::text_collection& assets,
 
 open_project_t bytes_to_project(serialization::in_buffer& buffer);
 
+static simple_fs::file_system common_fs {};
 static open_project_t example_ui_project {};
 static template_project::project ui_templates {};
+static asvg::file_bank svg_image_files {};
 
-int main(void) {
-	simple_fs::file_system common_fs {};
-	simple_fs::add_root(common_fs, NATIVE("./"));
-	auto root = get_root(common_fs);
-	auto assets = simple_fs::open_directory(root, NATIVE("assets"));
+void handle_main_menu(int width, int height, uint32_t bg_key, float ui_scale) {
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
-	auto example = simple_fs::open_file(assets, NATIVE("example_window.aui"));
-	auto example_content = view_contents(*example);
-	serialization::in_buffer example_buffer(example_content.data, example_content.file_size);
-	example_ui_project = bytes_to_project(example_buffer);
-	// example_ui_project.project_name = rem.substr(0, ext_pos);
-	example_ui_project.project_directory = NATIVE("./assets/");
+	glViewport(0, 0, (int)width, (int)height);
+	float aspect_ratio = (float)width / (float)height;
+	glClearColor(0.f, 0.f, 0.f, 0.f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	use_program(width, height);
 
-	auto uitemplates = simple_fs::open_file(assets, NATIVE("the.tui"));
-	auto content = view_contents(*uitemplates);
-	serialization::in_buffer buffer(content.data, content.file_size);
-	ui_templates = template_project::bytes_to_project(buffer);
+	auto bg_width = (float)game_text.associated_texture_width[bg_key];
+	auto bg_height = (float)game_text.associated_texture_height[bg_key];
+	auto scale = (float) height / bg_height;
 
-	asvg::file_bank svg_image_files {};
-	svg_image_files.root_directory =  example_ui_project.project_directory + simple_fs::utf16_to_native(ui_templates.svg_directory);
+	auto x_bg = (float)width / 2 - bg_width / 2.f * scale;
 
-	// ui_templates.project_name = rem.substr(0, ext_pos);
-	// ui_templates.project_directory = example_ui_project.project_directory;
-	for(auto& i : ui_templates.icons) {
-		simple_fs::file loaded_file{ svg_image_files.root_directory + simple_fs::utf8_to_native(i.file_name) };
-		i.renders = asvg::simple_svg(loaded_file.content.data, size_t(loaded_file.content.file_size));
-	}
-	for(auto& b : ui_templates.backgrounds) {
-		simple_fs::file loaded_file{ svg_image_files.root_directory + simple_fs::utf8_to_native(b.file_name) };
-		b.renders = asvg::svg(loaded_file.content.data, size_t(loaded_file.content.file_size), b.base_x, b.base_y);
-	}
-
-
-
-	glfwSetErrorCallback(error_callback);
-	if (!glfwInit())
-		return -1;
-
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
-
-	GLFWwindow* window;
-	float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
-	window = glfwCreateWindow(1280 * main_scale, 960 * main_scale, "009", NULL, NULL);
-	if (!window)
-	{
-		glfwTerminate();
-		return -1;
-	}
-	glfwSetKeyCallback(window, key_callback);
-	glfwMakeContextCurrent(window);
-	glfwSwapInterval(1);
-
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-	// Setup Dear ImGui style
-	// ImGui::StyleColorsDark();
-	ImGui::StyleColorsLight();
-
-	geometry::world::point camera { {0.f, 0.f} };
-	float zoom = 0.1f;
-
-	ImGuiStyle& style = ImGui::GetStyle();
-	style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
-	style.FontScaleDpi = main_scale;        // Set initial font scale. (using io.ConfigDpiScaleFonts=true makes this unnecessary. We leave both here for documentation purpose)
-
-
-	ImGui_ImplGlfw_InitForOpenGL(window, true);
-	ImGui_ImplOpenGL3_Init("#version 330 core");
-
-	GLenum err = glewInit();
-	if (GLEW_OK != err) {
-		fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
-	}
-	fprintf(stdout, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
-
-	// GLEW validation
-	if (auto result = glewInit(); result != GLEW_NO_ERROR)
-		glew_fail("glewInit: ", result);
-	if (!GLEW_VERSION_3_3)
-		throw std::runtime_error("OpenGL 3.3 is not supported");
-
-	glEnable(GL_DEBUG_OUTPUT);
-	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-
-	// illumination settings
-	glm::vec3 light_color = glm::vec3(3.f, 3.f, 3.f);
-	glm::vec3 ambient = glm::vec3(0.2f, 0.2f, 0.4f);
-	glClearColor(ambient.x, ambient.y, ambient.z, 0.f);
-
-	// load alice ui shader
-	load_shaders();
-	load_global_squares();
-
-	// setting up a basic shader
-	std::string shader_2d_vertex_path = "./shaders/basic_shader_flat.vert";
-	std::string shader_2d_fragment_path = "./shaders/basic_shader_flat.frag";
-	std::string shader_2d_vertex_source = read_shader( shader_2d_vertex_path );
-	std::string shader_2d_fragment_source = read_shader( shader_2d_fragment_path );
-	auto shader_2d = create_program(
-		create_shader(GL_VERTEX_SHADER, shader_2d_vertex_source.c_str()),
-		create_shader(GL_FRAGMENT_SHADER, shader_2d_fragment_source.c_str())
-	);
-	shader_2d_data shader_2d_loc {};
-	shader_2d_loc.shift = glGetUniformLocation(shader_2d, "shift");
-	shader_2d_loc.zoom = glGetUniformLocation(shader_2d, "zoom");
-	shader_2d_loc.aspect_ratio = glGetUniformLocation(shader_2d, "aspect_ratio");
-
-	// setting up an extra basic shader
-
-	std::string extra_basic_shader_vertex_path = "./shaders/basic_shader_textured.vert";
-	std::string extra_basic_shader_fragment_path = "./shaders/basic_shader_textured.frag";
-
-	std::string vertex_extra_basic_shader_source = read_shader( extra_basic_shader_vertex_path );
-	std::string fragment_extra_basic_shader_source = read_shader( extra_basic_shader_fragment_path );
-
-	auto extra_basic_shader = create_program(
-		create_shader(GL_VERTEX_SHADER, vertex_extra_basic_shader_source.c_str()),
-		create_shader(GL_FRAGMENT_SHADER, fragment_extra_basic_shader_source.c_str())
+	render_textured_rect(
+		{1.f, 1.f, 1.f},
+		x_bg, 0,
+		bg_width * scale, bg_height * scale,
+		game_text.associated_texture[bg_key]
 	);
 
-	GLuint extra_basic_model_location = glGetUniformLocation(extra_basic_shader, "model");
-	GLuint extra_basic_view_location = glGetUniformLocation(extra_basic_shader, "view");
-	GLuint extra_basic_projection_location = glGetUniformLocation(extra_basic_shader, "projection");
-	GLuint extra_basic_texture_location = glGetUniformLocation(extra_basic_shader, "texture_sampler");
-	GLuint extra_basic_uv_mod_location = glGetUniformLocation(extra_basic_shader, "uv_mod");
+	auto& win = example_ui_project.windows[0];
 
-	// setting up a basic shader
-	std::string basic_shader_vertex_path = "./shaders/basic_shader_meshes.vert";
-	std::string basic_shader_fragment_path = "./shaders/basic_shader_meshes.frag";
+	auto x = width / 2 - win.wrapped.x_size / 2;
+	auto y = height / 2 - win.wrapped.y_size / 2;
 
-	std::string vertex_shader_source = read_shader( basic_shader_vertex_path );
-	std::string fragment_shader_source = read_shader( basic_shader_fragment_path );
-
-	auto basic_shader = create_program(
-		create_shader(GL_VERTEX_SHADER, vertex_shader_source.c_str()),
-		create_shader(GL_FRAGMENT_SHADER, fragment_shader_source.c_str())
+	render_window(
+		common_fs,
+		svg_image_files,
+		example_ui_project,
+		ui_templates,
+		win,
+		x, y,
+		false,
+		1.f
 	);
 
-	GLuint model_location = glGetUniformLocation(basic_shader, "model");
-	GLuint view_location = glGetUniformLocation(basic_shader, "view");
-	GLuint projection_location = glGetUniformLocation(basic_shader, "projection");
-	GLuint albedo_location = glGetUniformLocation(basic_shader, "albedo");
-	GLuint map_data_location = glGetUniformLocation(basic_shader, "map_data");
-	GLuint color_location = glGetUniformLocation(basic_shader, "color");
-	GLuint use_texture_location = glGetUniformLocation(basic_shader, "use_texture");
-	GLuint light_direction_location = glGetUniformLocation(basic_shader, "light_direction");
-	GLuint camera_position_location = glGetUniformLocation(basic_shader, "camera_position");
-	GLuint light_color_location = glGetUniformLocation(basic_shader, "light_color");
-	GLuint ambient_location = glGetUniformLocation(basic_shader, "ambient");
-	GLuint bones_location = glGetUniformLocation(basic_shader, "bones");
+	assert_no_errors();
+}
 
-	GLuint shadow_layers_location = glGetUniformLocation(basic_shader, "shadow_layers");
-	GLuint sky_flag_location = glGetUniformLocation(basic_shader, "sky_sphere");
-	GLuint shadow_map_location = glGetUniformLocation(basic_shader, "shadow_map");
-	GLuint render_shadow_transform_location = glGetUniformLocation(basic_shader, "shadow_transform");
+void lighting_settings(ImGuiIO& io, glm::vec3& light_direction, glm::vec3& ambient) {
+	static float f = 0.0f;
+	static int counter = 0;
 
+	ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
 
-	std::string shadow_vertex_path = "./shaders/shadow.vert";
-	std::string shadow_fragment_path = "./shaders/shadow.frag";
-	std::string shadow_vertex_shader_source = read_shader( shadow_vertex_path );
-	std::string shadow_fragment_shader_source = read_shader( shadow_fragment_path );
-	auto shadow_vertex_shader = create_shader(GL_VERTEX_SHADER, shadow_vertex_shader_source.c_str());
-	auto shadow_fragment_shader = create_shader(GL_FRAGMENT_SHADER, shadow_fragment_shader_source.c_str());
-	auto shadow_program = create_program(shadow_vertex_shader, shadow_fragment_shader);
-	GLuint shadow_model_location = glGetUniformLocation(shadow_program, "model");
-	GLuint shadow_transform_location = glGetUniformLocation(shadow_program, "transform");
+	ImGui::Text("Test.");               // Display some text (you can use a format strings too)
 
-	GLsizei shadow_map_resolution = 2048 * 2;
-	const GLsizei shadow_layers = 1;
+	ImGui::SliderFloat3("float", (float*)&light_direction, -1.0f, 1.0f);
+	light_direction = glm::normalize(light_direction);
 
-	GLuint shadow_map;
-	glGenTextures(1, &shadow_map);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, shadow_map);
-	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexImage3D(
-		GL_TEXTURE_2D_ARRAY,
-		0,
-		GL_RG32F,
-		shadow_map_resolution, shadow_map_resolution, shadow_layers,
-		0,
-		GL_RGBA, GL_FLOAT, nullptr
-	);
+	ImGui::ColorEdit3("clear color", (float*)&ambient); // Edit 3 floats representing a color
 
-	GLuint shadow_fbo [shadow_layers];
-	GLuint shadow_renderbuffers [shadow_layers];
+	if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+		counter++;
+	ImGui::SameLine();
+	ImGui::Text("counter = %d", counter);
 
-	for (GLsizei i = 0; i < shadow_layers; i ++) {
-		glGenFramebuffers(1, &shadow_fbo[i]);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadow_fbo[i]);
-		glFramebufferTextureLayer(
-		GL_DRAW_FRAMEBUFFER,
-		GL_COLOR_ATTACHMENT0,
-		shadow_map, 0, i
+	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+	ImGui::End();
+}
+
+void race_explorer(const float TEXT_BASE_HEIGHT) {
+	ImGui::Begin("Races");
+
+	// Create item list
+	static std::vector<dcon::race_id> items;
+	if (items.size() == 0) {
+		state.for_each_race([&](auto race_id){
+			items.push_back(race_id);
+		});
+	}
+
+	// Options
+	static ImGuiTableFlags flags =
+	ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Sortable | ImGuiTableFlags_SortMulti
+	| ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV | ImGuiTableFlags_NoBordersInBody
+	| ImGuiTableFlags_ScrollY;
+
+	if (
+		ImGui::BeginTable(
+			"table_sorting",
+			5,
+			flags,
+			ImVec2(0.0f, TEXT_BASE_HEIGHT * 15),
+			0.0f)
+	) {
+
+		ImGui::TableSetupColumn(
+			"Icon",
+			ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed,
+			20.0f,
+			int(race_table_columns_id::icon)
 		);
 
-		if (glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-		throw std::runtime_error("Incomplete framebuffer!");
+		ImGui::TableSetupColumn(
+			"ID",
+			ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed,
+			60.0f,
+			int(race_table_columns_id::race_id)
+		);
 
-		glGenRenderbuffers(1, &shadow_renderbuffers[i]);
-		glBindRenderbuffer(GL_RENDERBUFFER, shadow_renderbuffers[i]);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, shadow_map_resolution, shadow_map_resolution);
-		glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, shadow_renderbuffers[i]);
+		ImGui::TableSetupColumn(
+			"Name",
+			ImGuiTableColumnFlags_WidthFixed,
+			120.0f,
+			int(race_table_columns_id::name)
+		);
+
+		ImGui::TableSetupColumn(
+			"Max age",
+			ImGuiTableColumnFlags_WidthFixed,
+			0.0f,
+			int(race_table_columns_id::max_age)
+		);
+
+		ImGui::TableSetupScrollFreeze(0, 1); // Make row always visible
+		ImGui::TableHeadersRow();
+
+		// Sort our data if sort specs have been changed!
+		if (ImGuiTableSortSpecs* sort_specs = ImGui::TableGetSortSpecs()) {
+			if (sort_specs->SpecsDirty) {
+				std::sort(items.begin(), items.end(), [&](dcon::race_id a, dcon::race_id b){
+					for (int n = 0; n < sort_specs->SpecsCount; n++) {
+						auto& sorted_colum = sort_specs->Specs[n];
+						auto column = race_table_columns_id(sorted_colum.ColumnUserID);
+						switch (column) {
+						case race_table_columns_id::race_id:
+						case race_table_columns_id::icon:
+							return a.index() < b.index();
+						case race_table_columns_id::
+							name:
+						{
+							auto key_a = state.race_get_name_text_index(a);
+							auto key_b = state.race_get_name_text_index(b);
+							return std::strcmp(
+								game_text.text.data() + game_text.word_start[key_a],
+								game_text.text.data() + game_text.word_start[key_b]
+							) < 0;
+						}
+						case race_table_columns_id::
+							males_per_hundred_females:
+							return
+								state.race_get_males_per_hundred_females(a)
+								<
+								state.race_get_males_per_hundred_females(b);
+						case race_table_columns_id::
+							child_age:
+							return
+								state.race_get_males_per_hundred_females(a)
+								<
+								state.race_get_males_per_hundred_females(b);
+						case race_table_columns_id::
+							teen_age:
+							return
+								state.race_get_males_per_hundred_females(a)
+								<
+								state.race_get_males_per_hundred_females(b);
+						case race_table_columns_id::
+							middle_age:
+							return
+								state.race_get_males_per_hundred_females(a)
+								<
+								state.race_get_males_per_hundred_females(b);
+						case race_table_columns_id::
+							elder_age:
+							return
+								state.race_get_males_per_hundred_females(a)
+								<
+								state.race_get_males_per_hundred_females(b);
+						case race_table_columns_id::
+							max_age:
+							return
+								state.race_get_max_age(a)
+								<
+								state.race_get_max_age(b);
+						case race_table_columns_id::
+							minimum_comfortable_temperature:
+							return
+								state.race_get_max_age(a)
+								<
+								state.race_get_max_age(b);
+						case race_table_columns_id::
+							female_body_size:
+							return
+								state.race_get_female_body_size(a)
+								<
+								state.race_get_female_body_size(b);
+						case race_table_columns_id::
+							male_body_size:
+							return
+								state.race_get_male_body_size(a)
+								<
+								state.race_get_male_body_size(b);
+						break;
+						default:
+							assert(false);
+							fprintf(stderr, "Unknown race enum value");
+							exit(1);
+						}
+					}
+					return a.index() < b.index();
+				});
+				sort_specs->SpecsDirty = false;
+			}
+		}
+
+		// Demonstrate using clipper for large vertical lists
+		ImGuiListClipper clipper;
+		clipper.Begin(items.size());
+		while (clipper.Step()) {
+			for (int row_n = clipper.DisplayStart; row_n < clipper.DisplayEnd; row_n++) {
+				// Display a data item
+				auto item = items[row_n];
+				ImGui::PushID(item.index());
+
+				ImGui::TableNextRow();
+
+
+				ImGui::TableNextColumn();
+				auto texture_id = game_text.associated_texture[state.race_get_icon_path_text_index(item)];
+				ImGui::ImageWithBg(
+					texture_id,
+					{20.f, 20.f},
+					{0, 0},
+					{1, 1},
+					{
+						1.f,
+						1.f,
+						1.f,
+						0.f
+					},
+					{
+						state.race_get_r(item),
+						state.race_get_g(item),
+						state.race_get_b(item),
+						1.f
+					}
+				);
+
+				ImGui::TableNextColumn();
+				ImGui::Text("%04d", item.index());
+
+				ImGui::TableNextColumn();
+				auto name_text_index = state.race_get_name_text_index(item);
+				ImGui::TextUnformatted(game_text.text.data() + game_text.word_start[name_text_index]);
+
+				ImGui::TableNextColumn();
+				ImGui::Text("%f", state.race_get_max_age(item));
+
+				ImGui::PopID();
+			}
+		}
+		ImGui::EndTable();
 	}
 
-	float albedo_world[] = {0.4f, 0.5f, 0.8f};
-	float albedo_character[] = {0.9f, 0.5f, 0.6f};
-	float albedo_critter[] = {0.5f, 0.1f, 0.1f};
+	ImGui::End();
+}
+
+template <typename F>
+void map_modes(std::vector<uint8_t>& map_mode_data, int world_size, F&& commit_map_mode) {
+	ImGui::Begin("Map mode");
+	const char* items[] = {
+		"White",
+		"Coast",
+		"Plates",
+		"Waterflow (Winter)",
+		"Waterflow (Summer)",
+		"Land",
+		"Heightmap",
+		"Soil organics",
+		"Ice",
+		"Rocks",
+		"Biomes"
+	};
+
+	static int item_selected_idx = 0;
+	static bool requested_map_update = false;
+	static int loaded_idx = -1;
+	static bool item_highlight = false;
+
+	// Custom size: use all width, 5 items tall
+	ImGui::Text("Full-width:");
+	if (ImGui::BeginListBox(
+		"##mapmode_listbox",
+		ImVec2(-FLT_MIN, 5 * ImGui::GetTextLineHeightWithSpacing())
+	)) {
+		for (int n = 0; n < IM_ARRAYSIZE(items); n++) {
+			bool is_selected = (item_selected_idx == n);
+			if (ImGui::Selectable(items[n], is_selected, 0))
+				item_selected_idx = n;
+			if (is_selected)
+				ImGui::SetItemDefaultFocus();
+		}
+		ImGui::EndListBox();
+	}
+
+	static bool ice_age = false;
+	if (item_selected_idx == 8) {
+		if (ImGui::Checkbox("Ice age?", &ice_age)) {
+			requested_map_update = true;
+		}
+	}
+
+	ImGui::End();
 
 
-	std::default_random_engine rng;
-	std::uniform_real_distribution<float> uniform{0.0, 1.0};
-	std::normal_distribution<float> normal_d{0.f, 0.1f};
-	std::normal_distribution<float> size_d{1.f, 0.3f};
+	if (item_selected_idx != loaded_idx || requested_map_update) {
+		loaded_idx = item_selected_idx;
+		requested_map_update = false;
+		if (item_selected_idx == 0) {
+			state.for_each_tile([&](dcon::tile_id tile) {
+				auto fst = tile_to_fst(world_size, tile);
+				auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+				map_mode_data[4 * index + 0] = 255;
+				map_mode_data[4 * index + 1] = 255;
+				map_mode_data[4 * index + 2] = 255;
+				map_mode_data[4 * index + 3] = 255;
+			});
+		} else if (item_selected_idx == 1) {
+			state.for_each_tile([&](dcon::tile_id tile) {
+				auto fst = tile_to_fst(world_size, tile);
+				auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+				if (state.tile_get_is_coast(tile)) {
+					map_mode_data[4 * index + 0] = 0;
+					map_mode_data[4 * index + 1] = 0;
+					map_mode_data[4 * index + 2] = 0;
+					map_mode_data[4 * index + 3] = 255;
+				} else {
+					map_mode_data[4 * index + 0] = 255;
+					map_mode_data[4 * index + 1] = 255;
+					map_mode_data[4 * index + 2] = 255;
+					map_mode_data[4 * index + 3] = 255;
+				}
+			});
+		} else if (item_selected_idx == 2) {
+			state.for_each_tile([&](dcon::tile_id tile) {
+				auto plate = state.tile_get_plate_from_plate_tiles(tile);
+				auto fst = tile_to_fst(world_size, tile);
+				auto r = state.plate_get_r(plate);
+				auto g = state.plate_get_g(plate);
+				auto b = state.plate_get_b(plate);
+				auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+				map_mode_data[4 * index + 0] = (uint8_t)(r * 255);
+				map_mode_data[4 * index + 1] = (uint8_t)(g * 255);
+				map_mode_data[4 * index + 2] = (uint8_t)(b * 255);
+				map_mode_data[4 * index + 3] = 255;
+			});
+		} else if (item_selected_idx == 3) {
+			state.for_each_tile([&](dcon::tile_id tile) {
+				auto fst = tile_to_fst(world_size, tile);
+				auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+				auto waterflow = state.tile_get_january_waterflow(tile);
+				map_mode_data[4 * index + 0] = (255 - (uint8_t)(waterflow / 20000.f * 255)) / 10;
+				map_mode_data[4 * index + 1] = 0;
+				map_mode_data[4 * index + 2] = (uint8_t)(waterflow / 20000.f * 255);
+				map_mode_data[4 * index + 3] = 255;
+			});
+		} else if (item_selected_idx == 4) {
+			state.for_each_tile([&](dcon::tile_id tile) {
+				auto fst = tile_to_fst(world_size, tile);
+				auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+				auto waterflow = state.tile_get_july_waterflow(tile);
+				map_mode_data[4 * index + 0] = (255 - (uint8_t)(waterflow / 20000.f * 255)) / 10;
+				map_mode_data[4 * index + 1] = 0;
+				map_mode_data[4 * index + 2] = (uint8_t)(waterflow / 20000.f * 255);
+				map_mode_data[4 * index + 3] = 255;
+			});
+		} else if (item_selected_idx == 5) {
+			state.for_each_tile([&](dcon::tile_id tile) {
+				auto fst = tile_to_fst(world_size, tile);
+				auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+				if (!state.tile_get_is_land(tile)) {
+					map_mode_data[4 * index + 0] = 0;
+					map_mode_data[4 * index + 1] = 0;
+					map_mode_data[4 * index + 2] = 0;
+					map_mode_data[4 * index + 3] = 255;
+				} else {
+					map_mode_data[4 * index + 0] = 255;
+					map_mode_data[4 * index + 1] = 255;
+					map_mode_data[4 * index + 2] = 255;
+					map_mode_data[4 * index + 3] = 255;
+				}
+			});
+		} else if (item_selected_idx == 6) {
+			state.for_each_tile([&](dcon::tile_id tile) {
+				auto fst = tile_to_fst(world_size, tile);
+				auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+				auto elevation = state.tile_get_elevation(tile);
+				auto score = (uint8_t)((elevation / 16000.f + 0.5f) * 255.f);
+				map_mode_data[4 * index + 0] = score;
+				map_mode_data[4 * index + 1] = score;
+				map_mode_data[4 * index + 2] = score;
+				map_mode_data[4 * index + 3] = 255;
+			});
+		} else if (item_selected_idx == 7) {
+			state.for_each_tile([&](dcon::tile_id tile) {
+				auto fst = tile_to_fst(world_size, tile);
+				auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+				auto soil_organics = state.tile_get_soil_organics(tile);
+				auto score = (uint8_t)(soil_organics * 255.f);
+				map_mode_data[4 * index + 0] = score;
+				map_mode_data[4 * index + 1] = score;
+				map_mode_data[4 * index + 2] = score;
+				map_mode_data[4 * index + 3] = 255;
+			});
+		} else if (item_selected_idx == 8) {
+			state.for_each_tile([&](dcon::tile_id tile) {
+				auto fst = tile_to_fst(world_size, tile);
+				auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+				auto ice = state.tile_get_ice(tile);
+				if (ice_age) {
+					ice = state.tile_get_ice_age_ice(tile);
+				}
+				auto score = (uint8_t)(ice * 6.f);
+				map_mode_data[4 * index + 0] = score;
+				map_mode_data[4 * index + 1] = score;
+				map_mode_data[4 * index + 2] = score;
+				map_mode_data[4 * index + 3] = 255;
+			});
+		} else if (item_selected_idx == 9) {
+			state.for_each_tile([&](dcon::tile_id tile) {
+				auto rock = state.tile_get_bedrock(tile);
+				auto fst = tile_to_fst(world_size, tile);
+				auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+				auto r = state.bedrock_get_r(rock);
+				auto g = state.bedrock_get_g(rock);
+				auto b = state.bedrock_get_b(rock);
+				map_mode_data[4 * index + 0] = (uint8_t)(r * 255);
+				map_mode_data[4 * index + 1] = (uint8_t)(g * 255);
+				map_mode_data[4 * index + 2] = (uint8_t)(b * 255);
+				map_mode_data[4 * index + 3] = 255;
+			});
+		} else if (item_selected_idx == 10) {
+			state.for_each_tile([&](dcon::tile_id tile) {
+				auto biome = state.tile_get_biome(tile);
+				auto fst = tile_to_fst(world_size, tile);
+				auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
+				auto r = state.biome_get_r(biome);
+				auto g = state.biome_get_g(biome);
+				auto b = state.biome_get_b(biome);
+				map_mode_data[4 * index + 0] = (uint8_t)(r * 255);
+				map_mode_data[4 * index + 1] = (uint8_t)(g * 255);
+				map_mode_data[4 * index + 2] = (uint8_t)(b * 255);
+				map_mode_data[4 * index + 3] = 255;
+			});
+		}
+		commit_map_mode();
+	}
+}
 
-	glm::vec3 camera_position{0.f, 0.f, 2.f};
+struct shadow_shader {
+	GLuint program;
+	GLuint model;
+	GLuint view;
+};
 
-	int width = 1;
-	int height = 1;
+struct planet_data_shader {
+	GLuint program;
+	GLuint model;
+	GLuint view;
+	GLuint projection;
+	GLuint light_direction;
+	GLuint light_color;
+	GLuint ambient_color;
+	GLuint albedo_color;
+	GLuint camera_position;
+	GLuint map_data;
+	GLuint shadow_map;
+	GLuint shadow_layers;
+	GLuint is_sky;
+	GLuint shadow_projection;
+};
+
+struct world_rendering_data {
+	int shadow_layers;
+	std::vector<GLuint> shadow_fbo {};
+	std::vector<GLuint> shadow_renderbuffers {};
+	int shadow_map_resolution;
+	shadow_shader shadow_shader;
+	planet_data_shader data_shader;
+	GLuint shadow_map_texture;
+	GLuint map_mode_texture;
+
+	glm::vec3 albedo_world;
+};
+
+struct camera_data {
+	glm::mat4 view;
+	glm::vec3 position;
+	glm::vec2 speed;
+	glm::vec3 eye;
+	glm::mat4 projection;
+	float far_plane;
+	float near_plane;
+};
+
+void update_camera(
+	camera_data& camera,
+	int world_size,
+	float dt,
+	float width,
+	float height
+) {
+	glm::vec3 eye {
+		cosf(camera.position.y) * sinf(camera.position.x),
+		sinf(camera.position.y),
+		cosf(camera.position.y) * cosf(camera.position.x)
+	};
+	eye *=  camera.position.z;
+
+	float target_zoom = 1.5;
+	float speed_mult = 20.f;
+	if (desired_zoom_level == -2) {
+		auto tile = r3_to_tile(world_size, eye);
+		auto elevation = state.tile_get_elevation(tile);
+		auto zoom_adjustment = opengl_elevation(elevation);
+		target_zoom = zoom_adjustment + 0.05f;
+		speed_mult = 5.f;
+	}
+	if (desired_zoom_level == -1) {
+		auto tile = r3_to_tile(world_size, eye);
+		auto elevation = state.tile_get_elevation(tile);
+		auto zoom_adjustment = opengl_elevation(elevation);
+		target_zoom = zoom_adjustment + 0.2f;
+		speed_mult = 10.f;
+	}
+	if (desired_zoom_level == 1) {
+		target_zoom = 2;
+		speed_mult = 40.f;
+	}
+
+	camera.speed *= exp(-dt * 10.f);
+	camera.speed += glm::vec2(float(current_move_x), float(current_move_y)) * dt;
+
+	auto zoom_direction = target_zoom - camera.position.z;
+	camera.position.xy += camera.speed * dt * speed_mult;
+	camera.position.z += zoom_direction * dt * 2.f;
+
+	camera.position.y = std::clamp(
+		camera.position.y,
+		-glm::pi<float>() / 2.f * 0.95f,
+		glm::pi<float>() / 2.f * 0.95f
+	);
+
+	float near_plane = 0.1f;
+	float far_plane = camera.position.z * 1.2f;
+	if (desired_zoom_level == -2) {
+		near_plane = 0.01f;
+		far_plane = camera.position.z * 1.2f;
+	}
+	if (desired_zoom_level == -1) {
+		near_plane = 0.01f;
+		far_plane = camera.position.z * 1.2f;
+	}
+	if (desired_zoom_level == 0) {
+		near_plane = 0.1f;
+		float far_plane = 0.6f;
+	}
+
+	camera.view = glm::lookAt(
+		camera.eye,
+		{0.f, 0.f, 0.f},
+		{0.f, 1.f, 0.f}
+	);
+
+	camera.projection = glm::perspective(
+		glm::pi<float>() / 3.f, width / height, near_plane, far_plane
+	);
+}
+
+void render_world(
+	GLFWwindow* window,
+	world_rendering_data& rendering_data,
+	camera_data& camera,
+	std::vector<uint8_t>& map_mode_data,
+	const glm::vec3& light_direction,
+	const glm::vec3& ambient_color,
+	const glm::vec3& light_color,
+	float width,
+	float height
+) {
+	glm::vec3 light_z = glm::normalize(light_direction);
+	glm::vec3 light_x = glm::normalize(glm::cross(light_z, {0.f, 0.f, 1.f}));
+	glm::vec3 light_y = glm::cross(light_x, light_z);
+
+	// drawing shadow maps
+	std::vector<glm::mat4> shadow_projections;
+
+	assert(rendering_data.shadow_layers == rendering_data.shadow_fbo.size());
+	assert(rendering_data.shadow_layers == rendering_data.shadow_renderbuffers.size());
+	auto shadow_layers = rendering_data.shadow_layers;
+
+	for (GLsizei i = 0; i < shadow_layers; i++) {
+		float ratio = camera.far_plane / camera.near_plane;
+		float current_layer_ratio = (float) i / shadow_layers;
+		float frustum_split_near = camera.near_plane * pow(ratio, current_layer_ratio);
+		float next_layer_ratio = (float) (i + 1) / shadow_layers;
+		float power = pow(ratio, next_layer_ratio);
+		float frustum_split_far = camera.near_plane * power;
+
+		glm::mat4 projection_shadow_range = glm::perspective(
+			glm::pi<float>() / 3.f, width / height, frustum_split_near, frustum_split_far
+		);
+
+		auto visible_world = frustum(projection_shadow_range * camera.view).vertices;
+
+		/*
+		std::vector<glm::vec3> visible_world {
+			{-2.f, -2.f, -2.f},
+			{-2.f, -2.f, +2.f},
+			{-2.f, +2.f, -2.f},
+			{+2.f, -2.f, -2.f},
+			{-2.f, +2.f, +2.f},
+			{+2.f, -2.f, +2.f},
+			{+2.f, +2.f, -2.f},
+			{+2.f, +2.f, +2.f},
+			{-2.f, -2.f, -2.f},
+		};
+		*/
+
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, rendering_data.shadow_fbo[i]);
+
+		glEnable(GL_DEPTH_TEST);
+		glDepthFunc(GL_LEQUAL);
+
+		glEnable(GL_CULL_FACE);
+		glCullFace(GL_BACK);
+
+		glDisable(GL_CULL_FACE);
+
+		glDisable(GL_BLEND);
+
+		glClearColor(1.0f, 1.0f, 0.0f, 0.0f);
+		glClearDepth(1.0f);
+
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glViewport(0, 0, rendering_data.shadow_map_resolution, rendering_data.shadow_map_resolution);
+
+		// projection of corners on X
+		float min_x = std::numeric_limits<float>::max();
+		float max_x = -std::numeric_limits<float>::max();
+		for (auto& corner : visible_world) {
+			max_x = std::max(max_x, glm::dot(corner, light_x));
+			min_x = std::min(min_x, glm::dot(corner, light_x));
+		}
+
+		// projection of corners on Y
+		float min_y = std::numeric_limits<float>::max();
+		float max_y = -std::numeric_limits<float>::max();
+		for (auto& corner : visible_world) {
+			max_y = std::max(max_y, glm::dot(corner, light_y));
+			min_y = std::min(min_y, glm::dot(corner, light_y));
+		}
+
+		// projection of corners on Z
+		float min_z = std::numeric_limits<float>::max();
+		float max_z = -std::numeric_limits<float>::max();
+		for (auto& corner : visible_world) {
+			max_z = std::max(max_z, glm::dot(corner, light_z));
+			min_z = std::min(min_z, glm::dot(corner, light_z));
+		}
+
+		glm::vec3 true_center {0.f};
+		for (auto& corner : visible_world) {
+			true_center += corner;
+		}
+		true_center /= (float)(visible_world.size());
+
+/*
+		auto corner = ground.model.meshes[0].max + glm::vec3(0.0, 10.0, 0.0);
+		max_z = std::max(max_z, glm::dot(corner, light_z));
+		min_z = std::min(min_z, glm::dot(corner, light_z));
+
+		corner = ground.model.meshes[0].min;
+		max_z = std::max(max_z, glm::dot(corner, light_z));
+		min_z = std::min(min_z, glm::dot(corner, light_z));
+*/
+
+		glm::vec3 max = {max_x, max_y, max_z};
+		glm::vec3 min = {min_x, min_y, min_z};
+
+		auto center = (max + min) * 0.5f;
+
+		glm::vec3 to_min {};//min - center;
+		glm::vec3 to_max {};//max - center;
+
+
+
+		auto center_world = glm::mat3(light_x, light_y, light_z) * center;
+
+		auto ortho = glm::ortho(
+			min_x, max_x,
+			min_y, max_y,
+			-max_z, -min_z
+		);
+		auto basis_change = glm::mat4(glm::transpose(glm::mat3(light_x, light_y, light_z)));
+
+		glm::mat4 light_projection = ortho * basis_change;
+		auto new_basis_center = basis_change * glm::vec4{true_center, 1.f};
+		auto image_of_center = light_projection * glm::vec4{true_center, 1.f};
+		auto projection_of_center = glm::dot(light_z, true_center);
+
+		shadow_projections.push_back(light_projection);
+
+		// projection_full_range = light_projection;
+
+		glUseProgram(rendering_data.shadow_shader.program);
+		glm::mat4 model (1.f);
+		glUniformMatrix4fv(rendering_data.shadow_shader.model, 1, GL_FALSE, reinterpret_cast<float *>(&model));
+		glUniformMatrix4fv(rendering_data.shadow_shader.view, 1, GL_FALSE, reinterpret_cast<float *>(&light_projection));
+
+		glBindVertexArray(world.map.mesh.vao);
+		glDrawArrays(
+			GL_TRIANGLES,
+			0,
+			world.map.mesh.data.size()
+		);
+	}
 
 	assert_no_errors();
 
-	int status, result, i;
-	lua_State *L;
-	L = luaL_newstate();
-	luaL_openlibs(L);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
-	status = luaL_loadfile(L, "./lua/main.lua");
-	if (status) {
-		fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
-		exit(1);
-	}
-	lua_newtable(L);
-	lua_setglobal(L, "love");
+	glViewport(0, 0, (int)width, (int)height);
+	float aspect_ratio = width / height;
+	glClearColor(ambient_color.x, ambient_color.y, ambient_color.z, 0.f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	lua_newtable(L);
-	lua_setglobal(L, "sote");
 
-	result = lua_pcall(L, 0, LUA_MULTRET, 0);
-	if (result) {
-		if (result == LUA_ERRRUN) {
-			// traceback at this point
-			const char *err = lua_tostring(L,-1);
-			std::cerr << err << "\n";
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LEQUAL);
 
-			// pop the error object
-			lua_pop(L,1);
-			exit(1);
-		}
-		fprintf(stderr, "ERROR %d. Failed to run script: %s\n", result, lua_tostring(L, -1));
-		exit(1);
-	}
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
 
+	// glDisable(GL_CULL_FACE);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glUseProgram(rendering_data.data_shader.program);
+
+	glActiveTexture(GL_TEXTURE10);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, rendering_data.shadow_map_texture);
+	glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, rendering_data.map_mode_texture);
+
+	glm::mat4 model (1.f);
+
+	auto& planet_shader = rendering_data.data_shader;
+	glUniformMatrix4fv(rendering_data.data_shader.model, 1, GL_FALSE, reinterpret_cast<float *>(&model));
+	glUniformMatrix4fv(rendering_data.data_shader.view, 1, GL_FALSE, reinterpret_cast<float *>(&camera.view));
+	glUniformMatrix4fv(rendering_data.data_shader.projection, 1, GL_FALSE, reinterpret_cast<float *>(&camera.projection));
+	glUniform3fv(planet_shader.light_direction, 1, reinterpret_cast<const float *>(&light_direction));
+	glUniform3fv(planet_shader.light_color, 1,  reinterpret_cast<const float *>(&light_color));
+	glUniform3fv(planet_shader.ambient_color, 1,  reinterpret_cast<const float *>(&ambient_color));
+	glUniform3fv(planet_shader.albedo_color, 1, reinterpret_cast<const float *>(&rendering_data.albedo_world));
+	glUniform3fv(planet_shader.camera_position, 1, reinterpret_cast<const float *>(&camera.eye));
+	glUniform1i(planet_shader.map_data, 0);
+	glUniform1i(planet_shader.shadow_map, 10);
+	glUniform1i(planet_shader.shadow_layers, shadow_layers);
+	glUniform1i(planet_shader.is_sky, 0);
+	glUniformMatrix4fv(planet_shader.shadow_projection, shadow_layers, GL_FALSE, reinterpret_cast<float *>(shadow_projections.data()));
+	assert_no_errors();
+	glBindVertexArray(world.map.mesh.vao);
+	glDrawArrays(
+		GL_TRIANGLES,
+		0,
+		world.map.mesh.data.size()
+	);
+
+
+	glCullFace(GL_FRONT);
+	glUniform1i(planet_shader.is_sky, 1);
+	glBindVertexArray(world.sky.mesh.vao);
+	glDrawArrays(
+		GL_TRIANGLES,
+		0,
+		world.sky.mesh.data.size()
+	);
+
+	assert_no_errors();
+}
+
+struct textured_rectangle_shader {
+	GLuint program;
+	GLuint view;
+	GLuint projection;
+	GLuint model;
+	GLuint texture_unit;
+	GLuint uv_map;
+};
+
+void render_characters(
+	textured_rectangle_shader shader,
+	game::simple_mesh square
+) {
+	glDisable(GL_DEPTH_TEST);
+	glUseProgram(shader.program);
+	glDisable(GL_CULL_FACE);
+	glUniformMatrix4fv(shader.view, 1, GL_FALSE, reinterpret_cast<float *>(&shader.view));
+	glUniformMatrix4fv(shader.projection, 1, GL_FALSE, reinterpret_cast<float *>(&shader.projection));
+	glUniform1i(shader.texture_unit, 0);
+	glBindVertexArray(square.vao);
+
+	state.for_each_settlement([&](auto settlement){
+		auto tile = state.settlement_get_tile_from_settlement_tile(settlement);
+		auto x = state.tile_get_x(tile);
+		auto y = state.tile_get_y(tile);
+		auto z = state.tile_get_z(tile);
+
+		auto elevation = state.tile_get_elevation(tile);
+		auto scale_r = opengl_elevation(elevation);
+
+		auto rect = sphere_to_rect({x, y, z});
+		rect.x = 0.5f - rect.x;
+		rect.y = 1.f - rect.y;
+
+		glm::mat4 model_square (1.f);
+		model_square = glm::rotate(model_square, rect.x * glm::pi<float>() * 2.f, {0.f, 1.f, 0.f});
+		model_square = glm::rotate(model_square, (rect.y - 0.5f) * glm::pi<float>(), {0.f, 0.f, 1.f});
+		model_square = glm::scale(model_square, {scale_r * 1.001f, 0.0015f, 0.0015f});
+		glUniformMatrix4fv(shader.model, 1, GL_FALSE, reinterpret_cast<float *>(&model_square));
+
+		state.settlement_for_each_pop_location(settlement, [&](dcon::pop_location_id pop_location){
+			auto pop = state.pop_location_get_pop(pop_location);
+			render_portrait(state, game_text, pop, square.data.size(), shader.uv_map);
+		});
+		/*
+		glDrawArrays(
+			GL_TRIANGLES,
+			0,
+			square.data.size()
+		);
+		*/
+	});
+
+	assert_no_errors();
+}
+
+enum class game_scene {
+	main_menu,
+	world_exploration,
+	game
+};
+
+void load_world_from_images(
+	lua_State* L,
+	std::vector<uint8_t>& map_mode_data,
+	GLuint& map_mode_texture,
+	int& world_size
+) {
+	int result;
 
 	lua_pushcfunction(L, traceback);
 	lua_getfield(L, LUA_GLOBALSINDEX, "sote");
@@ -1288,12 +1884,13 @@ int main(void) {
 	// get world size
 	lua_getfield(L, LUA_GLOBALSINDEX, "DEFINES");
 	lua_getfield(L, -1, "world_size");
-	auto world_size = (int)(lua_tonumber(L, -1));
+	world_size = (int)(lua_tonumber(L, -1));
 
 	// load images
+
+
 	// -- After we create the empty world, we can fill it with data...
 	printf("Loading tectonics map...");
-
 
 	{
 		ankerl::unordered_dense::map<int32_t, dcon::plate_id> detected_plates{};
@@ -1718,10 +2315,305 @@ int main(void) {
 		exit(1);
 	}
 	lua_pop(L, 1);
-	/*
-	*/
 
-	lua_close(L);   /* Cya, Lua */
+	GLsizei map_mode_resolution = world_size;
+	constexpr GLsizei map_mode_layers = 6;
+
+
+	map_mode_data.resize(4 * map_mode_layers * map_mode_resolution * map_mode_resolution);
+
+	glGenTextures(1, &map_mode_texture);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, map_mode_texture);
+	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	auto push_map_mode = [&]{
+		glTexImage3D(
+			GL_TEXTURE_2D_ARRAY,
+			0,
+			GL_RGBA,
+			map_mode_resolution, map_mode_resolution, map_mode_layers,
+			0,
+			GL_RGBA, GL_UNSIGNED_BYTE, map_mode_data.data()
+		);
+	};
+
+	generate_cube_sphere(state, world.map, world_size, false);
+	generate_cube_sphere(state, world.sky, world_size, true);
+}
+
+void update_ui(lua_State* L, open_project_t project) {
+	std::string ui_path = simple_fs::native_to_utf8(project.project_name);
+
+}
+
+int main(void) {
+	simple_fs::add_root(common_fs, NATIVE("./"));
+	auto root = get_root(common_fs);
+	auto assets = simple_fs::open_directory(root, NATIVE("assets"));
+
+	auto example = simple_fs::open_file(assets, NATIVE("example_window.aui"));
+	auto example_content = view_contents(*example);
+	serialization::in_buffer example_buffer(example_content.data, example_content.file_size);
+	example_ui_project = bytes_to_project(example_buffer);
+	example_ui_project.project_name = L"example_window";
+	example_ui_project.project_directory = NATIVE("./assets/");
+
+
+	auto uitemplates = simple_fs::open_file(assets, NATIVE("the.tui"));
+	auto content = view_contents(*uitemplates);
+	serialization::in_buffer buffer(content.data, content.file_size);
+	ui_templates = template_project::bytes_to_project(buffer);
+
+	svg_image_files.root_directory = simple_fs::utf16_to_native(ui_templates.svg_directory);
+
+	// ui_templates.project_name = rem.substr(0, ext_pos);
+	// ui_templates.project_directory = example_ui_project.project_directory;
+	for(auto& i : ui_templates.icons) {
+		simple_fs::file loaded_file{  example_ui_project.project_directory + svg_image_files.root_directory + simple_fs::utf8_to_native(i.file_name) };
+		i.renders = asvg::simple_svg(loaded_file.content.data, size_t(loaded_file.content.file_size));
+	}
+	for(auto& b : ui_templates.backgrounds) {
+		simple_fs::file loaded_file{  example_ui_project.project_directory + svg_image_files.root_directory + simple_fs::utf8_to_native(b.file_name) };
+		b.renders = asvg::svg(loaded_file.content.data, size_t(loaded_file.content.file_size), b.base_x, b.base_y);
+	}
+
+
+
+	glfwSetErrorCallback(error_callback);
+	if (!glfwInit())
+		return -1;
+
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
+
+	GLFWwindow* window;
+	float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
+	window = glfwCreateWindow(1280 * main_scale, 960 * main_scale, "009", NULL, NULL);
+	if (!window)
+	{
+		glfwTerminate();
+		return -1;
+	}
+	glfwSetKeyCallback(window, key_callback);
+	glfwMakeContextCurrent(window);
+	glfwSwapInterval(1);
+
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+	// Setup Dear ImGui style
+	// ImGui::StyleColorsDark();
+	ImGui::StyleColorsLight();
+
+	geometry::world::point camera { {0.f, 0.f} };
+	float zoom = 0.1f;
+
+	ImGuiStyle& style = ImGui::GetStyle();
+	style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+	style.FontScaleDpi = main_scale;        // Set initial font scale. (using io.ConfigDpiScaleFonts=true makes this unnecessary. We leave both here for documentation purpose)
+
+
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init("#version 330 core");
+
+	GLenum err = glewInit();
+	if (GLEW_OK != err) {
+		fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
+	}
+	fprintf(stdout, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
+
+	// GLEW validation
+	if (auto result = glewInit(); result != GLEW_NO_ERROR)
+		glew_fail("glewInit: ", result);
+	if (!GLEW_VERSION_3_3)
+		throw std::runtime_error("OpenGL 3.3 is not supported");
+
+	glEnable(GL_DEBUG_OUTPUT);
+	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+
+	// illumination settings
+	glm::vec3 light_color = glm::vec3(3.f, 3.f, 3.f);
+	glm::vec3 ambient_color = glm::vec3(0.2f, 0.2f, 0.4f);
+	glClearColor(ambient_color.x, ambient_color.y, ambient_color.z, 0.f);
+
+	// load alice ui shader
+	load_shaders();
+	load_global_squares();
+
+	// setting up a basic shader
+	std::string shader_2d_vertex_path = "./shaders/basic_shader_flat.vert";
+	std::string shader_2d_fragment_path = "./shaders/basic_shader_flat.frag";
+	std::string shader_2d_vertex_source = read_shader( shader_2d_vertex_path );
+	std::string shader_2d_fragment_source = read_shader( shader_2d_fragment_path );
+	auto shader_2d = create_program(
+		create_shader(GL_VERTEX_SHADER, shader_2d_vertex_source.c_str()),
+		create_shader(GL_FRAGMENT_SHADER, shader_2d_fragment_source.c_str())
+	);
+	shader_2d_data shader_2d_loc {};
+	shader_2d_loc.shift = glGetUniformLocation(shader_2d, "shift");
+	shader_2d_loc.zoom = glGetUniformLocation(shader_2d, "zoom");
+	shader_2d_loc.aspect_ratio = glGetUniformLocation(shader_2d, "aspect_ratio");
+
+	// setting up an extra basic shader
+
+	std::string extra_basic_shader_vertex_path = "./shaders/basic_shader_textured.vert";
+	std::string extra_basic_shader_fragment_path = "./shaders/basic_shader_textured.frag";
+
+	std::string vertex_extra_basic_shader_source = read_shader( extra_basic_shader_vertex_path );
+	std::string fragment_extra_basic_shader_source = read_shader( extra_basic_shader_fragment_path );
+
+	auto extra_basic_shader = create_program(
+		create_shader(GL_VERTEX_SHADER, vertex_extra_basic_shader_source.c_str()),
+		create_shader(GL_FRAGMENT_SHADER, fragment_extra_basic_shader_source.c_str())
+	);
+
+	GLuint extra_basic_model_location = glGetUniformLocation(extra_basic_shader, "model");
+	GLuint extra_basic_view_location = glGetUniformLocation(extra_basic_shader, "view");
+	GLuint extra_basic_projection_location = glGetUniformLocation(extra_basic_shader, "projection");
+	GLuint extra_basic_texture_location = glGetUniformLocation(extra_basic_shader, "texture_sampler");
+	GLuint extra_basic_uv_mod_location = glGetUniformLocation(extra_basic_shader, "uv_mod");
+
+	// setting up a basic shader
+	std::string basic_shader_vertex_path = "./shaders/basic_shader_meshes.vert";
+	std::string basic_shader_fragment_path = "./shaders/basic_shader_meshes.frag";
+
+	std::string vertex_shader_source = read_shader( basic_shader_vertex_path );
+	std::string fragment_shader_source = read_shader( basic_shader_fragment_path );
+
+	auto basic_shader = create_program(
+		create_shader(GL_VERTEX_SHADER, vertex_shader_source.c_str()),
+		create_shader(GL_FRAGMENT_SHADER, fragment_shader_source.c_str())
+	);
+
+	GLuint model_location = glGetUniformLocation(basic_shader, "model");
+	GLuint view_location = glGetUniformLocation(basic_shader, "view");
+	GLuint projection_location = glGetUniformLocation(basic_shader, "projection");
+	GLuint albedo_location = glGetUniformLocation(basic_shader, "albedo");
+	GLuint map_data_location = glGetUniformLocation(basic_shader, "map_data");
+	GLuint color_location = glGetUniformLocation(basic_shader, "color");
+	GLuint use_texture_location = glGetUniformLocation(basic_shader, "use_texture");
+	GLuint light_direction_location = glGetUniformLocation(basic_shader, "light_direction");
+	GLuint camera_position_location = glGetUniformLocation(basic_shader, "camera_position");
+	GLuint light_color_location = glGetUniformLocation(basic_shader, "light_color");
+	GLuint ambient_location = glGetUniformLocation(basic_shader, "ambient");
+	GLuint bones_location = glGetUniformLocation(basic_shader, "bones");
+
+	GLuint shadow_layers_location = glGetUniformLocation(basic_shader, "shadow_layers");
+	GLuint sky_flag_location = glGetUniformLocation(basic_shader, "sky_sphere");
+	GLuint shadow_map_location = glGetUniformLocation(basic_shader, "shadow_map");
+	GLuint render_shadow_transform_location = glGetUniformLocation(basic_shader, "shadow_transform");
+
+
+	std::string shadow_vertex_path = "./shaders/shadow.vert";
+	std::string shadow_fragment_path = "./shaders/shadow.frag";
+	std::string shadow_vertex_shader_source = read_shader( shadow_vertex_path );
+	std::string shadow_fragment_shader_source = read_shader( shadow_fragment_path );
+	auto shadow_vertex_shader = create_shader(GL_VERTEX_SHADER, shadow_vertex_shader_source.c_str());
+	auto shadow_fragment_shader = create_shader(GL_FRAGMENT_SHADER, shadow_fragment_shader_source.c_str());
+	auto shadow_program = create_program(shadow_vertex_shader, shadow_fragment_shader);
+	GLuint shadow_model_location = glGetUniformLocation(shadow_program, "model");
+	GLuint shadow_transform_location = glGetUniformLocation(shadow_program, "transform");
+
+	GLsizei shadow_map_resolution = 2048 * 2;
+	const GLsizei shadow_layers = 1;
+
+	GLuint shadow_map;
+	glGenTextures(1, &shadow_map);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, shadow_map);
+	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexImage3D(
+		GL_TEXTURE_2D_ARRAY,
+		0,
+		GL_RG32F,
+		shadow_map_resolution, shadow_map_resolution, shadow_layers,
+		0,
+		GL_RGBA, GL_FLOAT, nullptr
+	);
+
+	std::vector<GLuint> shadow_fbo{};
+	std::vector<GLuint> shadow_renderbuffers{};
+
+	shadow_fbo.resize(shadow_layers);
+	shadow_renderbuffers.resize(shadow_layers);
+
+	for (GLsizei i = 0; i < shadow_layers; i ++) {
+		glGenFramebuffers(1, &shadow_fbo[i]);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadow_fbo[i]);
+		glFramebufferTextureLayer(
+		GL_DRAW_FRAMEBUFFER,
+		GL_COLOR_ATTACHMENT0,
+		shadow_map, 0, i
+		);
+
+		if (glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		throw std::runtime_error("Incomplete framebuffer!");
+
+		glGenRenderbuffers(1, &shadow_renderbuffers[i]);
+		glBindRenderbuffer(GL_RENDERBUFFER, shadow_renderbuffers[i]);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, shadow_map_resolution, shadow_map_resolution);
+		glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, shadow_renderbuffers[i]);
+	}
+
+	glm::vec3 albedo_world {0.4f, 0.5f, 0.8f};
+	float albedo_character[] = {0.9f, 0.5f, 0.6f};
+	float albedo_critter[] = {0.5f, 0.1f, 0.1f};
+
+
+	std::default_random_engine rng;
+	std::uniform_real_distribution<float> uniform{0.0, 1.0};
+	std::normal_distribution<float> normal_d{0.f, 0.1f};
+	std::normal_distribution<float> size_d{1.f, 0.3f};
+
+	glm::vec3 camera_position{0.f, 0.f, 2.f};
+
+	int width = 1;
+	int height = 1;
+
+	assert_no_errors();
+
+	int status, result, i;
+	lua_State *L;
+	L = luaL_newstate();
+	luaL_openlibs(L);
+
+	status = luaL_loadfile(L, "./lua/main.lua");
+	if (status) {
+		fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
+		exit(1);
+	}
+	lua_newtable(L);
+	lua_setglobal(L, "love");
+
+	lua_newtable(L);
+	lua_setglobal(L, "sote");
+
+	result = lua_pcall(L, 0, LUA_MULTRET, 0);
+	if (result) {
+		if (result == LUA_ERRRUN) {
+			// traceback at this point
+			const char *err = lua_tostring(L,-1);
+			std::cerr << err << "\n";
+
+			// pop the error object
+			lua_pop(L,1);
+			exit(1);
+		}
+		fprintf(stderr, "ERROR %d. Failed to run script: %s\n", result, lua_tostring(L, -1));
+		exit(1);
+	}
+
+	  /* Cya, Lua */
 
 	{
 		// really basic
@@ -1771,50 +2663,61 @@ int main(void) {
 	}
 
 
-	bool flip_x = false;
-	bool flip_y = false;
-
-	// reserve textures for map modes
-
-
-
-	GLsizei map_mode_resolution = world_size;
-	constexpr GLsizei map_mode_layers = 6;
+	game::simple_mesh square {};
+	generate_square(square);
 
 	std::vector<uint8_t> map_mode_data;
 
-	map_mode_data.resize(4 * map_mode_layers * map_mode_resolution * map_mode_resolution);
-
 	GLuint map_mode_texture;
-	glGenTextures(1, &map_mode_texture);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, map_mode_texture);
-	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	auto push_map_mode = [&]{
-		glTexImage3D(
-			GL_TEXTURE_2D_ARRAY,
-			0,
-			GL_RGBA,
-			map_mode_resolution, map_mode_resolution, map_mode_layers,
-			0,
-			GL_RGBA, GL_UNSIGNED_BYTE, map_mode_data.data()
-		);
-	};
-
-	generate_cube_sphere(state, world.map, world_size, false);
-	generate_cube_sphere(state, world.sky, world_size, true);
-
-	game::simple_mesh square {};
-	generate_square(square);
+	int world_size = 1;
 
 	float update_timer = 0.f;
 	glm::vec3 light_direction {0.5f, 0.5f, 0.5f};
 	glm::vec2 camera_speed = {};
 	int tick = 0;
 	float data[512] {};
+
+	game_scene current_scene = game_scene::main_menu;
+
+	world_rendering_data world_opengl_data {
+		.shadow_layers = shadow_layers,
+		.shadow_fbo = shadow_fbo,
+		.shadow_renderbuffers = shadow_renderbuffers,
+		.shadow_map_resolution = shadow_map_resolution,
+		.shadow_shader {
+			.program = shadow_program,
+			.model = shadow_model_location,
+			.view = shadow_transform_location
+		},
+		.data_shader {
+			.program = basic_shader,
+			.model = model_location,
+			.view = view_location,
+			.projection = projection_location,
+			.light_direction = light_direction_location,
+			.light_color = light_color_location,
+			.ambient_color = ambient_location,
+			.albedo_color = albedo_location,
+			.camera_position = camera_position_location,
+			.map_data = map_data_location,
+			.shadow_map = shadow_map_location,
+			.shadow_layers = shadow_layers_location,
+			.is_sky = sky_flag_location,
+			.shadow_projection = shadow_transform_location,
+		},
+		.shadow_map_texture = shadow_map,
+		.map_mode_texture = map_mode_texture,
+		.albedo_world = albedo_world
+	};
+
+	std::string path_to_bg = "./lua/data/gfx/backgrounds/background.png";
+	auto bg_key = new_text(state, game_text, path_to_bg.size(), path_to_bg.data());
+	load_texture(game_text, bg_key);
+
+	camera_data camera_opengl_data {};
+
+	settings current_settings {};
+	current_settings.ui_scale = 1.f;
 
 	double last_time = glfwGetTime();
 	while (!glfwWindowShouldClose(window))
@@ -1831,47 +2734,15 @@ int main(void) {
 			update_timer = 0.f;
 		}
 
-
-		glm::vec3 eye {
-			cosf(camera_position.y) * sinf(camera_position.x),
-			sinf(camera_position.y),
-			cosf(camera_position.y) * cosf(camera_position.x)
-		};
-		eye *=  camera_position.z;
-
-		float target_zoom = 1.5;
-		float speed_mult = 20.f;
-		if (desired_zoom_level == -2) {
-			auto tile = r3_to_tile(world_size, eye);
-			auto elevation = state.tile_get_elevation(tile);
-			auto zoom_adjustment = opengl_elevation(elevation);
-			target_zoom = zoom_adjustment + 0.05f;
-			speed_mult = 5.f;
+		if (current_scene == game_scene::world_exploration) {
+			update_camera(
+				camera_opengl_data,
+				world_size,
+				dt,
+				width,
+				height
+			);
 		}
-		if (desired_zoom_level == -1) {
-			auto tile = r3_to_tile(world_size, eye);
-			auto elevation = state.tile_get_elevation(tile);
-			auto zoom_adjustment = opengl_elevation(elevation);
-			target_zoom = zoom_adjustment + 0.2f;
-			speed_mult = 10.f;
-		}
-		if (desired_zoom_level == 1) {
-			target_zoom = 2;
-			speed_mult = 40.f;
-		}
-
-		camera_speed *= exp(-dt * 10.f);
-		camera_speed += glm::vec2(float(current_move_x), float(current_move_y)) * dt;
-
-		auto zoom_direction = target_zoom - camera_position.z;
-		camera_position.xy += camera_speed * dt * speed_mult;
-		camera_position.z += zoom_direction * dt * 2.f;
-
-		camera_position.y = std::clamp(
-			camera_position.y,
-			-glm::pi<float>() / 2.f * 0.95f,
-			glm::pi<float>() / 2.f * 0.95f
-		);
 
 		// if (glfwGetWindowAttrib(window, GLFW_ICONIFIED) != 0) {
 		// 	ImGui_ImplGlfw_Sleep(10);
@@ -1882,729 +2753,36 @@ int main(void) {
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
-
-
 		const float TEXT_BASE_HEIGHT = ImGui::GetTextLineHeightWithSpacing();
 
-		glm::vec3 light_direction {cosf(time / 100.f), sinf(time / 100.f), 2.5f};
-		glm::vec3 light_z = glm::normalize(light_direction);
-		glm::vec3 light_x = glm::normalize(glm::cross(light_z, {0.f, 0.f, 1.f}));
-		glm::vec3 light_y = glm::cross(light_x, light_z);
+		// IMGUI CODE HERE
 
-		{
-			static float f = 0.0f;
-			static int counter = 0;
-
-			ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-			ImGui::Text("Test.");               // Display some text (you can use a format strings too)
-
-			ImGui::SliderFloat3("float", (float*)&light_direction, -1.0f, 1.0f);
-			light_direction = glm::normalize(light_direction);
-
-			ImGui::ColorEdit3("clear color", (float*)&ambient); // Edit 3 floats representing a color
-
-			if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-				counter++;
-			ImGui::SameLine();
-			ImGui::Text("counter = %d", counter);
-
-			if (ImGui::Button("flip_x")) {
-				flip_x = !flip_x;
-			}
-			if (ImGui::Button("flip_y")) {
-				flip_y = !flip_y;
-			}
-
-			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-			ImGui::End();
-		}
-
-		{
-			ImGui::Begin("Races");
-
-			// Create item list
-			static std::vector<dcon::race_id> items;
-			if (items.size() == 0) {
-				state.for_each_race([&](auto race_id){
-					items.push_back(race_id);
-				});
-			}
-
-			// Options
-			static ImGuiTableFlags flags =
-			ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Sortable | ImGuiTableFlags_SortMulti
-			| ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV | ImGuiTableFlags_NoBordersInBody
-			| ImGuiTableFlags_ScrollY;
-
-			if (
-				ImGui::BeginTable(
-					"table_sorting",
-					5,
-					flags,
-					ImVec2(0.0f, TEXT_BASE_HEIGHT * 15),
-					0.0f)
-			) {
-
-				ImGui::TableSetupColumn(
-					"Icon",
-					ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed,
-					20.0f,
-					int(race_table_columns_id::icon)
-				);
-
-				ImGui::TableSetupColumn(
-					"ID",
-					ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed,
-					60.0f,
-					int(race_table_columns_id::race_id)
-				);
-
-				ImGui::TableSetupColumn(
-					"Name",
-					ImGuiTableColumnFlags_WidthFixed,
-					120.0f,
-					int(race_table_columns_id::name)
-				);
-
-				ImGui::TableSetupColumn(
-					"Max age",
-					ImGuiTableColumnFlags_WidthFixed,
-					0.0f,
-					int(race_table_columns_id::max_age)
-				);
-
-				ImGui::TableSetupScrollFreeze(0, 1); // Make row always visible
-				ImGui::TableHeadersRow();
-
-				// Sort our data if sort specs have been changed!
-				if (ImGuiTableSortSpecs* sort_specs = ImGui::TableGetSortSpecs()) {
-					if (sort_specs->SpecsDirty) {
-						std::sort(items.begin(), items.end(), [&](dcon::race_id a, dcon::race_id b){
-							for (int n = 0; n < sort_specs->SpecsCount; n++) {
-								auto& sorted_colum = sort_specs->Specs[n];
-								auto column = race_table_columns_id(sorted_colum.ColumnUserID);
-								switch (column) {
-								case race_table_columns_id::race_id:
-								case race_table_columns_id::icon:
-									return a.index() < b.index();
-								case race_table_columns_id::
-									name:
-								{
-									auto key_a = state.race_get_name_text_index(a);
-									auto key_b = state.race_get_name_text_index(b);
-									return std::strcmp(
-										game_text.text.data() + game_text.word_start[key_a],
-										game_text.text.data() + game_text.word_start[key_b]
-									) < 0;
-								}
-								case race_table_columns_id::
-									males_per_hundred_females:
-									return
-										state.race_get_males_per_hundred_females(a)
-										<
-										state.race_get_males_per_hundred_females(b);
-								case race_table_columns_id::
-									child_age:
-									return
-										state.race_get_males_per_hundred_females(a)
-										<
-										state.race_get_males_per_hundred_females(b);
-								case race_table_columns_id::
-									teen_age:
-									return
-										state.race_get_males_per_hundred_females(a)
-										<
-										state.race_get_males_per_hundred_females(b);
-								case race_table_columns_id::
-									middle_age:
-									return
-										state.race_get_males_per_hundred_females(a)
-										<
-										state.race_get_males_per_hundred_females(b);
-								case race_table_columns_id::
-									elder_age:
-									return
-										state.race_get_males_per_hundred_females(a)
-										<
-										state.race_get_males_per_hundred_females(b);
-								case race_table_columns_id::
-									max_age:
-									return
-										state.race_get_max_age(a)
-										<
-										state.race_get_max_age(b);
-								case race_table_columns_id::
-									minimum_comfortable_temperature:
-									return
-										state.race_get_max_age(a)
-										<
-										state.race_get_max_age(b);
-								case race_table_columns_id::
-									female_body_size:
-									return
-										state.race_get_female_body_size(a)
-										<
-										state.race_get_female_body_size(b);
-								case race_table_columns_id::
-									male_body_size:
-									return
-										state.race_get_male_body_size(a)
-										<
-										state.race_get_male_body_size(b);
-								break;
-								default:
-									assert(false);
-									fprintf(stderr, "Unknown race enum value");
-									exit(1);
-                                                                }
-                                                        }
-							return a.index() < b.index();
-						});
-						sort_specs->SpecsDirty = false;
-					}
-				}
-
-				// Demonstrate using clipper for large vertical lists
-				ImGuiListClipper clipper;
-				clipper.Begin(items.size());
-				while (clipper.Step()) {
-					for (int row_n = clipper.DisplayStart; row_n < clipper.DisplayEnd; row_n++) {
-						// Display a data item
-						auto item = items[row_n];
-						ImGui::PushID(item.index());
-
-						ImGui::TableNextRow();
-
-
-						ImGui::TableNextColumn();
-						auto texture_id = game_text.associated_texture[state.race_get_icon_path_text_index(item)];
-						ImGui::ImageWithBg(
-							texture_id,
-							{20.f, 20.f},
-							{0, 0},
-							{1, 1},
-							{
-								1.f,
-								1.f,
-								1.f,
-								0.f
-							},
-							{
-								state.race_get_r(item),
-								state.race_get_g(item),
-								state.race_get_b(item),
-								1.f
-							}
-						);
-
-						ImGui::TableNextColumn();
-						ImGui::Text("%04d", item.index());
-
-						ImGui::TableNextColumn();
-						auto name_text_index = state.race_get_name_text_index(item);
-						ImGui::TextUnformatted(game_text.text.data() + game_text.word_start[name_text_index]);
-
-						ImGui::TableNextColumn();
-						ImGui::Text("%f", state.race_get_max_age(item));
-
-						ImGui::PopID();
-					}
-				}
-				ImGui::EndTable();
-			}
-
-			ImGui::End();
-		}
-
-		{
-			ImGui::Begin("Map mode");
-			const char* items[] = {
-				"White",
-				"Coast",
-				"Plates",
-				"Waterflow (Winter)",
-				"Waterflow (Summer)",
-				"Land",
-				"Heightmap",
-				"Soil organics",
-				"Ice",
-				"Rocks",
-				"Biomes"
-			};
-
-			static int item_selected_idx = 0;
-			static bool requested_map_update = false;
-			static int loaded_idx = -1;
-			static bool item_highlight = false;
-
-			// Custom size: use all width, 5 items tall
-			ImGui::Text("Full-width:");
-			if (ImGui::BeginListBox(
-				"##mapmode_listbox",
-				ImVec2(-FLT_MIN, 5 * ImGui::GetTextLineHeightWithSpacing())
-			)) {
-				for (int n = 0; n < IM_ARRAYSIZE(items); n++) {
-					bool is_selected = (item_selected_idx == n);
-					if (ImGui::Selectable(items[n], is_selected, 0))
-						item_selected_idx = n;
-					if (is_selected)
-						ImGui::SetItemDefaultFocus();
-				}
-				ImGui::EndListBox();
-			}
-
-			static bool ice_age = false;
-			if (item_selected_idx == 8) {
-				if (ImGui::Checkbox("Ice age?", &ice_age)) {
-					requested_map_update = true;
-				}
-			}
-
-			ImGui::End();
-
-
-			if (item_selected_idx != loaded_idx || requested_map_update) {
-				loaded_idx = item_selected_idx;
-				requested_map_update = false;
-				if (item_selected_idx == 0) {
-					state.for_each_tile([&](dcon::tile_id tile) {
-						auto fst = tile_to_fst(world_size, tile);
-						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
-						map_mode_data[4 * index + 0] = 255;
-						map_mode_data[4 * index + 1] = 255;
-						map_mode_data[4 * index + 2] = 255;
-						map_mode_data[4 * index + 3] = 255;
-					});
-				} else if (item_selected_idx == 1) {
-					state.for_each_tile([&](dcon::tile_id tile) {
-						auto fst = tile_to_fst(world_size, tile);
-						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
-						if (state.tile_get_is_coast(tile)) {
-							map_mode_data[4 * index + 0] = 0;
-							map_mode_data[4 * index + 1] = 0;
-							map_mode_data[4 * index + 2] = 0;
-							map_mode_data[4 * index + 3] = 255;
-						} else {
-							map_mode_data[4 * index + 0] = 255;
-							map_mode_data[4 * index + 1] = 255;
-							map_mode_data[4 * index + 2] = 255;
-							map_mode_data[4 * index + 3] = 255;
-						}
-					});
-				} else if (item_selected_idx == 2) {
-					state.for_each_tile([&](dcon::tile_id tile) {
-						auto plate = state.tile_get_plate_from_plate_tiles(tile);
-						auto fst = tile_to_fst(world_size, tile);
-						auto r = state.plate_get_r(plate);
-						auto g = state.plate_get_g(plate);
-						auto b = state.plate_get_b(plate);
-						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
-						map_mode_data[4 * index + 0] = (uint8_t)(r * 255);
-						map_mode_data[4 * index + 1] = (uint8_t)(g * 255);
-						map_mode_data[4 * index + 2] = (uint8_t)(b * 255);
-						map_mode_data[4 * index + 3] = 255;
-					});
-				} else if (item_selected_idx == 3) {
-					state.for_each_tile([&](dcon::tile_id tile) {
-						auto fst = tile_to_fst(world_size, tile);
-						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
-						auto waterflow = state.tile_get_january_waterflow(tile);
-						map_mode_data[4 * index + 0] = (255 - (uint8_t)(waterflow / 20000.f * 255)) / 10;
-						map_mode_data[4 * index + 1] = 0;
-						map_mode_data[4 * index + 2] = (uint8_t)(waterflow / 20000.f * 255);
-						map_mode_data[4 * index + 3] = 255;
-					});
-				} else if (item_selected_idx == 4) {
-					state.for_each_tile([&](dcon::tile_id tile) {
-						auto fst = tile_to_fst(world_size, tile);
-						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
-						auto waterflow = state.tile_get_july_waterflow(tile);
-						map_mode_data[4 * index + 0] = (255 - (uint8_t)(waterflow / 20000.f * 255)) / 10;
-						map_mode_data[4 * index + 1] = 0;
-						map_mode_data[4 * index + 2] = (uint8_t)(waterflow / 20000.f * 255);
-						map_mode_data[4 * index + 3] = 255;
-					});
-				} else if (item_selected_idx == 5) {
-					state.for_each_tile([&](dcon::tile_id tile) {
-						auto fst = tile_to_fst(world_size, tile);
-						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
-						if (!state.tile_get_is_land(tile)) {
-							map_mode_data[4 * index + 0] = 0;
-							map_mode_data[4 * index + 1] = 0;
-							map_mode_data[4 * index + 2] = 0;
-							map_mode_data[4 * index + 3] = 255;
-						} else {
-							map_mode_data[4 * index + 0] = 255;
-							map_mode_data[4 * index + 1] = 255;
-							map_mode_data[4 * index + 2] = 255;
-							map_mode_data[4 * index + 3] = 255;
-						}
-					});
-				} else if (item_selected_idx == 6) {
-					state.for_each_tile([&](dcon::tile_id tile) {
-						auto fst = tile_to_fst(world_size, tile);
-						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
-						auto elevation = state.tile_get_elevation(tile);
-						auto score = (uint8_t)((elevation / 16000.f + 0.5f) * 255.f);
-						map_mode_data[4 * index + 0] = score;
-						map_mode_data[4 * index + 1] = score;
-						map_mode_data[4 * index + 2] = score;
-						map_mode_data[4 * index + 3] = 255;
-					});
-				} else if (item_selected_idx == 7) {
-					state.for_each_tile([&](dcon::tile_id tile) {
-						auto fst = tile_to_fst(world_size, tile);
-						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
-						auto soil_organics = state.tile_get_soil_organics(tile);
-						auto score = (uint8_t)(soil_organics * 255.f);
-						map_mode_data[4 * index + 0] = score;
-						map_mode_data[4 * index + 1] = score;
-						map_mode_data[4 * index + 2] = score;
-						map_mode_data[4 * index + 3] = 255;
-					});
-				} else if (item_selected_idx == 8) {
-					state.for_each_tile([&](dcon::tile_id tile) {
-						auto fst = tile_to_fst(world_size, tile);
-						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
-						auto ice = state.tile_get_ice(tile);
-						if (ice_age) {
-							ice = state.tile_get_ice_age_ice(tile);
-						}
-						auto score = (uint8_t)(ice * 6.f);
-						map_mode_data[4 * index + 0] = score;
-						map_mode_data[4 * index + 1] = score;
-						map_mode_data[4 * index + 2] = score;
-						map_mode_data[4 * index + 3] = 255;
-					});
-				} else if (item_selected_idx == 9) {
-					state.for_each_tile([&](dcon::tile_id tile) {
-						auto rock = state.tile_get_bedrock(tile);
-						auto fst = tile_to_fst(world_size, tile);
-						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
-						auto r = state.bedrock_get_r(rock);
-						auto g = state.bedrock_get_g(rock);
-						auto b = state.bedrock_get_b(rock);
-						map_mode_data[4 * index + 0] = (uint8_t)(r * 255);
-						map_mode_data[4 * index + 1] = (uint8_t)(g * 255);
-						map_mode_data[4 * index + 2] = (uint8_t)(b * 255);
-						map_mode_data[4 * index + 3] = 255;
-					});
-				} else if (item_selected_idx == 10) {
-					state.for_each_tile([&](dcon::tile_id tile) {
-						auto biome = state.tile_get_biome(tile);
-						auto fst = tile_to_fst(world_size, tile);
-						auto index = fst.x * world_size * world_size + fst.z * world_size + fst.y;
-						auto r = state.biome_get_r(biome);
-						auto g = state.biome_get_g(biome);
-						auto b = state.biome_get_b(biome);
-						map_mode_data[4 * index + 0] = (uint8_t)(r * 255);
-						map_mode_data[4 * index + 1] = (uint8_t)(g * 255);
-						map_mode_data[4 * index + 2] = (uint8_t)(b * 255);
-						map_mode_data[4 * index + 3] = 255;
-					});
-				}
-				push_map_mode();
-			}
-		}
 
 		ImGui::Render();
 
-
-		float near_plane = 0.1f;
-		float far_plane = 3.f;
-		if (desired_zoom_level == -2) {
-			near_plane = 0.01f;
-			far_plane = camera_position.z + 0.1f;
-		}
-		if (desired_zoom_level == -1) {
-			near_plane = 0.01f;
-			far_plane = camera_position.z + 0.1f;
-		}
-		if (desired_zoom_level == 0) {
-			near_plane = 0.1f;
-			float far_plane = 0.6f;
-		}
-
-		glm::mat4 view(1.f);
-
-		view = glm::lookAt(
-			eye,
-			{0.f, 0.f, 0.f},
-			{0.f, 1.f, 0.f}
-		);
-
-
-		// drawing shadow maps
-		std::vector<glm::mat4> shadow_projections;
-		glm::mat4 projection_full_range = glm::perspective(
-			glm::pi<float>() / 3.f, (1.f * width) / height, near_plane, far_plane
-		);
-
-		for (GLsizei i = 0; i < shadow_layers; i++) {
-			float ratio = far_plane / near_plane;
-			float current_layer_ratio = (float) i / shadow_layers;
-			float frustum_split_near = near_plane * pow(ratio, current_layer_ratio);
-			float next_layer_ratio = (float) (i + 1) / shadow_layers;
-			float power = pow(ratio, next_layer_ratio);
-			float frustum_split_far = near_plane * power;
-
-			glm::mat4 projection_shadow_range = glm::perspective(
-				glm::pi<float>() / 3.f, (float)(width) / (float)height, frustum_split_near, frustum_split_far
-			);
-
-			auto visible_world = frustum(projection_shadow_range * view).vertices;
-
-			/*
-			std::vector<glm::vec3> visible_world {
-				{-2.f, -2.f, -2.f},
-				{-2.f, -2.f, +2.f},
-				{-2.f, +2.f, -2.f},
-				{+2.f, -2.f, -2.f},
-				{-2.f, +2.f, +2.f},
-				{+2.f, -2.f, +2.f},
-				{+2.f, +2.f, -2.f},
-				{+2.f, +2.f, +2.f},
-				{-2.f, -2.f, -2.f},
-			};
-			*/
-
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadow_fbo[i]);
-
-			glEnable(GL_DEPTH_TEST);
-			glDepthFunc(GL_LEQUAL);
-
-			glEnable(GL_CULL_FACE);
-			glCullFace(GL_BACK);
-
-			glDisable(GL_CULL_FACE);
-
-			glDisable(GL_BLEND);
-
-			glClearColor(1.0f, 1.0f, 0.0f, 0.0f);
-			glClearDepth(1.0f);
-
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			glViewport(0, 0, shadow_map_resolution, shadow_map_resolution);
-
-			// projection of corners on X
-			float min_x = std::numeric_limits<float>::max();
-			float max_x = -std::numeric_limits<float>::max();
-			for (auto& corner : visible_world) {
-				max_x = std::max(max_x, glm::dot(corner, light_x));
-				min_x = std::min(min_x, glm::dot(corner, light_x));
-			}
-
-			// projection of corners on Y
-			float min_y = std::numeric_limits<float>::max();
-			float max_y = -std::numeric_limits<float>::max();
-			for (auto& corner : visible_world) {
-				max_y = std::max(max_y, glm::dot(corner, light_y));
-				min_y = std::min(min_y, glm::dot(corner, light_y));
-			}
-
-			// projection of corners on Z
-			float min_z = std::numeric_limits<float>::max();
-			float max_z = -std::numeric_limits<float>::max();
-			for (auto& corner : visible_world) {
-				max_z = std::max(max_z, glm::dot(corner, light_z));
-				min_z = std::min(min_z, glm::dot(corner, light_z));
-			}
-
-			glm::vec3 true_center {0.f};
-			for (auto& corner : visible_world) {
-				true_center += corner;
-			}
-			true_center /= (float)(visible_world.size());
-
-/*
-			auto corner = ground.model.meshes[0].max + glm::vec3(0.0, 10.0, 0.0);
-			max_z = std::max(max_z, glm::dot(corner, light_z));
-			min_z = std::min(min_z, glm::dot(corner, light_z));
-
-			corner = ground.model.meshes[0].min;
-			max_z = std::max(max_z, glm::dot(corner, light_z));
-			min_z = std::min(min_z, glm::dot(corner, light_z));
-*/
-
-			glm::vec3 max = {max_x, max_y, max_z};
-			glm::vec3 min = {min_x, min_y, min_z};
-
-			auto center = (max + min) * 0.5f;
-
-			glm::vec3 to_min {};//min - center;
-			glm::vec3 to_max {};//max - center;
-
-
-
-			auto center_world = glm::mat3(light_x, light_y, light_z) * center;
-
-			auto ortho = glm::ortho(
-				min_x, max_x,
-				min_y, max_y,
-				-max_z, -min_z
-			);
-			auto basis_change = glm::mat4(glm::transpose(glm::mat3(light_x, light_y, light_z)));
-
-			glm::mat4 light_projection = ortho * basis_change;
-			auto new_basis_center = basis_change * glm::vec4{true_center, 1.f};
-			auto image_of_center = light_projection * glm::vec4{true_center, 1.f};
-			auto projection_of_center = glm::dot(light_z, true_center);
-
-			shadow_projections.push_back(light_projection);
-
-			// projection_full_range = light_projection;
-
-			glUseProgram(shadow_program);
-			glm::mat4 model (1.f);
-			glUniformMatrix4fv(shadow_model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model));
-			glUniformMatrix4fv(shadow_transform_location, 1, GL_FALSE, reinterpret_cast<float *>(&light_projection));
-
-			glBindVertexArray(world.map.mesh.vao);
-			glDrawArrays(
-				GL_TRIANGLES,
-				0,
-				world.map.mesh.data.size()
+		// OPENGL RENDERING HERE
+		if (current_scene == game_scene::main_menu) {
+			handle_main_menu(width, height, bg_key, current_settings.ui_scale);
+		} else if (current_scene == game_scene::world_exploration) {
+			render_world(
+				window,
+				world_opengl_data,
+				camera_opengl_data,
+				map_mode_data,
+				light_direction,
+				ambient_color,
+				light_color,
+				width,
+				height
 			);
 		}
 
-		assert_no_errors();
+		// conclusion
 
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 		glfwGetFramebufferSize(window, &width, &height);
-
 		width = std::max(width, 10);
 		height = std::max(height, 10);
-
-		glViewport(0, 0, width, height);
-		float aspect_ratio = (float) width / (float) height;
-		glClearColor(ambient.x, ambient.y, ambient.z, 0.f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-
-		glEnable(GL_DEPTH_TEST);
-		glDepthFunc(GL_LEQUAL);
-
-		glEnable(GL_CULL_FACE);
-		glCullFace(GL_BACK);
-
-		// glDisable(GL_CULL_FACE);
-
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-		glUseProgram(basic_shader);
-		glActiveTexture(GL_TEXTURE10);
-		glBindTexture(GL_TEXTURE_2D_ARRAY, shadow_map);
-		glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D_ARRAY, map_mode_texture);
-		glm::mat4 model (1.f);
-		glUniformMatrix4fv(model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model));
-		glUniformMatrix4fv(view_location, 1, GL_FALSE, reinterpret_cast<float *>(&view));
-		glUniformMatrix4fv(projection_location, 1, GL_FALSE, reinterpret_cast<float *>(&projection_full_range));
-		glUniform3fv(light_direction_location, 1, reinterpret_cast<float *>(&light_direction));
-		glUniform3fv(light_color_location, 1,  reinterpret_cast<float *>(&light_color));
-		glUniform3fv(ambient_location, 1,  reinterpret_cast<float *>(&ambient));
-		glUniform3fv(albedo_location, 1, albedo_world);
-		glUniform3fv(camera_position_location, 1, reinterpret_cast<float *>(&eye));
-		glUniform1i(map_data_location, 0);
-		glUniform1i(shadow_map_location, 10);
-		glUniform1i(shadow_layers_location, shadow_layers);
-		glUniform1i(sky_flag_location, 0);
-		glUniformMatrix4fv(render_shadow_transform_location, shadow_layers, GL_FALSE, reinterpret_cast<float *>(shadow_projections.data()));
-		assert_no_errors();
-		glBindVertexArray(world.map.mesh.vao);
-		glDrawArrays(
-			GL_TRIANGLES,
-			0,
-			world.map.mesh.data.size()
-		);
-
-
-		glCullFace(GL_FRONT);
-		glUniform1i(sky_flag_location, 1);
-		glBindVertexArray(world.sky.mesh.vao);
-		glDrawArrays(
-			GL_TRIANGLES,
-			0,
-			world.sky.mesh.data.size()
-		);
-
-		assert_no_errors();
-
-		// put settlement texture there
-
-		glDisable(GL_DEPTH_TEST);
-
-		glUseProgram(extra_basic_shader);
-		glDisable(GL_CULL_FACE);
-		glUniformMatrix4fv(extra_basic_view_location, 1, GL_FALSE, reinterpret_cast<float *>(&view));
-		glUniformMatrix4fv(extra_basic_projection_location, 1, GL_FALSE, reinterpret_cast<float *>(&projection_full_range));
-		glUniform1i(extra_basic_texture_location, 0);
-		glBindVertexArray(square.vao);
-
-		state.for_each_settlement([&](auto settlement){
-			auto tile = state.settlement_get_tile_from_settlement_tile(settlement);
-			auto x = state.tile_get_x(tile);
-			auto y = state.tile_get_y(tile);
-			auto z = state.tile_get_z(tile);
-
-			auto elevation = state.tile_get_elevation(tile);
-			auto scale_r = opengl_elevation(elevation);
-
-			auto rect = sphere_to_rect({x, y, z});
-			rect.x = 0.5f - rect.x;
-			rect.y = 1.f - rect.y;
-
-			glm::mat4 model_square (1.f);
-			model_square = glm::rotate(model_square, rect.x * glm::pi<float>() * 2.f, {0.f, 1.f, 0.f});
-			model_square = glm::rotate(model_square, (rect.y - 0.5f) * glm::pi<float>(), {0.f, 0.f, 1.f});
-			model_square = glm::scale(model_square, {scale_r * 1.001f, 0.0015f, 0.0015f});
-			glUniformMatrix4fv(extra_basic_model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model_square));
-
-			state.settlement_for_each_pop_location(settlement, [&](dcon::pop_location_id pop_location){
-				auto pop = state.pop_location_get_pop(pop_location);
-				render_portrait(state, game_text, pop, square.data.size(), extra_basic_uv_mod_location);
-			});
-			/*
-			glDrawArrays(
-				GL_TRIANGLES,
-				0,
-				square.data.size()
-			);
-			*/
-		});
-
-		assert_no_errors();
-
-		use_program(width, height);
-		auto& win = example_ui_project.windows[0];
-		if (win.wrapped.x_size == 0) {
-			render_window(
-				common_fs,
-				svg_image_files,
-				example_ui_project,
-				ui_templates,
-				win,
-				50, 50,
-				false,
-				1.f
-			);
-		} else {
-			render_window(
-				common_fs,
-				svg_image_files,
-				example_ui_project,
-				ui_templates,
-				win,
-				win.wrapped.x_size, win.wrapped.y_size,
-				false,
-				1.f
-			);
-		}
-
-		assert_no_errors();
 
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
@@ -2617,9 +2795,8 @@ int main(void) {
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
-
 	glfwDestroyWindow(window);
-
 	glfwTerminate();
+	lua_close(L);
 	return 0;
 }

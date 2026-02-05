@@ -85,12 +85,6 @@ void render_control(
         ui_element_t& c, float x, float y, float ui_scale
 ) {
 	auto render_asvg_rect = [&](asvg::svg& s, float hcursor, float vcursor, float x_sz, float y_sz, int32_t gsz) {
-		render_hollow_rect(c.rectangle_color,
-			hcursor,
-			vcursor,
-			std::max(1, int32_t(x_sz * ui_scale)),
-			std::max(1, int32_t(y_sz * ui_scale)));
-
 		render_textured_rect(color3f{ 0.f, 0.f, 0.f },
 			hcursor,
 			vcursor,
@@ -513,6 +507,7 @@ struct layout_iterator {
 
 		if(std::holds_alternative<layout_control_t>(m)) {
 			auto& i = std::get<layout_control_t>(m);
+			update_cached_control(open_project, i.name, window, i.cached_index);
 
 			if(i.absolute_position) {
 				return  measure_result{ 0, 0, measure_result::special::none };
@@ -542,6 +537,7 @@ struct layout_iterator {
 			}
 		} else if(std::holds_alternative<layout_window_t>(m)) {
 			auto& i = std::get<layout_window_t>(m);
+			update_cached_window(open_project, i.name, i.cached_index);
 			if(i.absolute_position) {
 				return  measure_result{ 0, 0, measure_result::special::none };
 			}
@@ -1063,8 +1059,8 @@ void load_shaders() {
 		"vec4 direct_texture(vec2 tc) {\n"
 			"float realx = tc.x * d_rect.z;\n"
 			"float realy = tc.y * d_rect.w;\n"
-			"if(realx <= 2.5 || realy <= 2.5 || realx >= (d_rect.z -2.5) || realy >= (d_rect.w -2.5))\n"
-				"return vec4(inner_color.r, inner_color.g, inner_color.b, 1.0f);\n"
+			// "if(realx <= 2.5 || realy <= 2.5 || realx >= (d_rect.z -2.5) || realy >= (d_rect.w -2.5))\n"
+				// "return vec4(inner_color.r, inner_color.g, inner_color.b, 1.0f);\n"
 			"\treturn texture(texture_sampler, tc);\n"
 		"}\n"
 		"vec4 frame_stretch(vec2 tc) {\n"
@@ -1261,6 +1257,7 @@ void render_empty_rect(color3f color, float ix, float iy, int32_t iwidth, int32_
         assert_no_errors();
 }
 void render_hollow_rect(color3f color, float ix, float iy, int32_t iwidth, int32_t iheight) {
+	/*
 	float x = float(ix);
 	float y = float(iy);
 	float width = float(iwidth);
@@ -1279,11 +1276,12 @@ void render_hollow_rect(color3f color, float ix, float iy, int32_t iwidth, int32
 
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
         assert_no_errors();
+	*/
 }
 
 void render_layout_rect(color3f outline_color, float ix, float iy, int32_t iwidth, int32_t iheight) {
-	render_empty_rect(outline_color * 0.5f, ix, iy, iwidth, iheight);
-	render_hollow_rect(outline_color, ix, iy, iwidth, iheight);
+	// render_empty_rect(outline_color * 0.5f, ix, iy, iwidth, iheight);
+	// render_hollow_rect(outline_color, ix, iy, iwidth, iheight);
 }
 
 void render_layout(

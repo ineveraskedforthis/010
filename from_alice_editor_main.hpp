@@ -1,4 +1,4 @@
-#include "AliceUIEditor/project_description.hpp"
+#include "project_description.hpp"
 #include "BlankProject/src/gamestate/uitemplate.hpp"
 #include "asvg.hpp"
 #include "simple_fs.hpp"
