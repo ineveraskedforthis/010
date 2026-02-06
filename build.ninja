@@ -11,7 +11,7 @@ blank_includes = -I./BlankProject/src -I./BlankProject/src/gamestate -I./BlankPr
 lunasvg_includes = -I./BlankProject/src/lunasvg -I./stb_image
 
 includes = -I./ -I./glfw/include -I./glew-cmake/include -I./imgui -I./glm $dcon_includes_common -I./LuaJIT/src
-libs = -l./glfw/build/src/glfw3 -l./glew-cmake/build/lib/libglew32d -lUser32.lib -lShell32 -lGdi32 -lopengl32 -l./LuaJIT/src/lua51 -lOle32
+libs = -l./glfw/build/src/glfw3 -l./glew-cmake/build/lib/libglew32d -lUser32.lib -lShell32 -lGdi32 -lopengl32 -l./LuaJIT/src/lua51 -lOle32 -licu
 
 rule ccpp_game
   command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -mavx2 -MD -MF $out.d $includes $blank_includes -c $in -o $out
@@ -34,8 +34,10 @@ rule ccpp
   description = compile $out
   depfile = $out.d
 
-rule ccpp_freetype
-  command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -mavx2 -MD -MF $out.d $freetype_includes -c $in -o $out
+freetype_includes = -I./BlankProject/build/_deps/freetype-src/include
+
+rule cc_freetype
+  command = $c_compiler $optimisation_flag $debug_flags -D_CRT_SECURE_NO_WARNINGS -DFT2_BUILD_LIBRARY -DFT_DISABLE_ZLIB=TRUE -DFT_DISABLE_BZIP2=TRUE -DFT_DISABLE_PNG=TRUE -DFT_DISABLE_BROTLI=TRUE -DFT_CONFIG_OPTION_USE_HARFBUZZ=TRUE -DFT_DISABLE_HARFBUZZ=FALSE -DHARFBUZZ_FOUND=TRUE -DFT_CONFIG_MODULES_H=<ftmodule.h> -I. -MD -MF $out.d $freetype_includes -c $in -o $out
   description = compile $out
   depfile = $out.d
 
@@ -45,13 +47,54 @@ build BlankProject/build/_deps/freetype-src/src/base/ftdebug.c : phony flags/bla
 build BlankProject/build/_deps/freetype-src/src/base/ftbase.c : phony flags/blank_project_configured
 build BlankProject/build/_deps/freetype-src/src/base/ftbbox.c : phony flags/blank_project_configured
 build BlankProject/build/_deps/freetype-src/src/base/ftglyph.c : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype-src/src/truetype/truetype.c : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype-src/src/base/ftbitmap.c : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype-src/src/svg/ftsvg.c : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype-src/src/base/ftmm.c : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype-src/src/autofit/ft-hb.c : phony flags/blank_project_configured
 
-build cache/ftsystem.o : ccpp_freetype BlankProject/build/_deps/freetype-src/src/base/ftsystem.c
-build cache/ftinit.o : ccpp_freetype BlankProject/build/_deps/freetype-src/src/base/ftinit.c
-build cache/ftdebug.o : ccpp_freetype BlankProject/build/_deps/freetype-src/src/base/ftdebug.c
-build cache/ftbase.o : ccpp_freetype BlankProject/build/_deps/freetype-src/src/base/ftbase.c
-build cache/ftbbox.o : ccpp_freetype BlankProject/build/_deps/freetype-src/src/base/ftbbox.c
-build cache/ftglyph.o : ccpp_freetype BlankProject/build/_deps/freetype-src/src/base/ftglyph.c
+build BlankProject/build/_deps/freetype-src/src/autofit/ft-hb-ft.c : phony flags/blank_project_configured
+
+#build BlankProject/build/_deps/freetype-src/src/bdf/bdf.c : phony flags/blank_project_configured
+#build BlankProject/build/_deps/freetype-src/src/cff/cff.c : phony flags/blank_project_configured
+#build BlankProject/build/_deps/freetype-src/src/cid/type1cid.c : phony flags/blank_project_configured
+#build BlankProject/build/_deps/freetype-src/src/pcf/pcf.c : phony flags/blank_project_configured
+#build BlankProject/build/_deps/freetype-src/src/pfr/pfr.c : phony flags/blank_project_configured
+#build BlankProject/build/_deps/freetype-src/src/sfnt/sfnt.c : phony flags/blank_project_configured
+#build BlankProject/build/_deps/freetype-src/src/type1/type1.c : phony flags/blank_project_configured
+#build BlankProject/build/_deps/freetype-src/src/type42/type42.c : phony flags/blank_project_configured
+#build BlankProject/build/_deps/freetype-src/src/winfonts/winfnt.c : phony flags/blank_project_configured
+
+build cache/ft-hb.o : cc_freetype BlankProject/build/_deps/freetype-src/src/autofit/ft-hb.c
+build cache/ft-hb-ft.o : cc_freetype BlankProject/build/_deps/freetype-src/src/autofit/ft-hb-ft.c
+build cache/ftbitmap.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftbitmap.c
+build cache/ftmm.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftmm.c
+build cache/ftsystem.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftsystem.c
+build cache/ftinit.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftinit.c
+build cache/ftdebug.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftdebug.c
+build cache/ftbase.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftbase.c
+build cache/ftbbox.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftbbox.c
+build cache/ftglyph.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftglyph.c
+build cache/ftsvg.o : cc_freetype BlankProject/build/_deps/freetype-src/src/svg/ftsvg.c
+
+#build cache/bdf/bdf.o : cc_freetype BlankProject/build/_deps/freetype-src/src/bdf/bdf.c
+#build cache/cff/cff.o : cc_freetype BlankProject/build/_deps/freetype-src/src/cff/cff.c
+#build cache/cid/type1cid.o : cc_freetype BlankProject/build/_deps/freetype-src/src/cid/type1cid.c
+#build cache/pcf/pcf.o : cc_freetype BlankProject/build/_deps/freetype-src/src/pcf/pcf.c
+#build cache/pfr/pfr.o : cc_freetype BlankProject/build/_deps/freetype-src/src/pfr/pfr.c
+#build  cache/sfnt/sfnt.o : cc_freetype BlankProject/build/_deps/freetype-src/src/sfnt/sfnt.c
+build cache/src/truetype/truetype.o  : cc_freetype BlankProject/build/_deps/freetype-src/src/truetype/truetype.c
+#build cache/type1/type1.o  : cc_freetype BlankProject/build/_deps/freetype-src/src/type1/type1.c
+#build cache/type42/type42.o  : cc_freetype BlankProject/build/_deps/freetype-src/src/type42/type42.c
+#build cache/winfonts/winfnt.o  : cc_freetype BlankProject/build/_deps/freetype-src/src/winfonts/winfnt.c
+
+build BlankProject/build/_deps/freetype-src/src/smooth/smooth.c : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype-src/src/raster/raster.c : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype-src/src/sdf/sdf.c : phony flags/blank_project_configured
+
+build cache/smooth/smooth.o : cc_freetype BlankProject/build/_deps/freetype-src/src/smooth/smooth.c
+build cache/raster/raster.o : cc_freetype BlankProject/build/_deps/freetype-src/src/raster/raster.c
+build cache/sdf/sdf.o : cc_freetype BlankProject/build/_deps/freetype-src/src/sdf/sdf.c
 
 rule link
   command = $cpp_compiler $cpp_standard $debug_flags_link $in $libs -mavx2 -o $out -Xlinker /subsystem:console
@@ -80,10 +123,134 @@ rule clone_blank_project
   command = cmd /c "git clone https://github.com/ineveraskedforthis/BlankProject.git || (cd BlankProject && git pull origin && cd ..) && touch flags/blank_project_cloned"
 
 rule configure_blank_project
-  command = cmd /c "cd BlankProject && mkdir build || cd build && cmake .. -G Ninja -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++ && touch ../../flags/blank_project_configured"
+  command = cmd /c "cd BlankProject && mkdir build || cd build && cmake .. -G Ninja && touch ../../flags/blank_project_configured"
 
-rule configure_freetype
-  command = cmd /c "cd BlankProject/build && cmake --build ."
+rule clone_meson
+  command = cmd /c "git clone https://github.com/mesonbuild/meson.git"
+
+#build meson/meson.py : clone_meson
+#rule configure_hb
+#  command = cmd /c "cd BlankProject/build/_deps/harfbuzz-src && set CC=clang && set CXX=clang++ && python ../../../../meson/meson.py build -Dfreetype=enabled -Dutilities=disabled && touch ../../../../flags/hb_configured"
+#build flags/hb_configured : configure_hb | flags/blank_project_configured meson/meson.py
+
+harfbuzz_includes = -I./BlankProject/build/_deps/harfbuzz-src/src
+
+rule ccpp_harfbuzz
+  command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -D_CRT_SECURE_NO_WARNINGS -DHAVE_FREETYPE=TRUE -Wno-nontrivial-memcall -MD -MF $out.d $harfbuzz_includes $freetype_includes -c $in -o $out
+  description = compile $out
+  depfile = $out.d
+
+build BlankProject/build/_deps/harfbuzz-src/src/hb-aat-layout.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-aat-map.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-blob.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-buffer-serialize.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-buffer-verify.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-buffer.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-common.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-draw.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-paint.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-paint-extents.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-face.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-face-builder.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-fallback-shape.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-font.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-map.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-number.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-cff1-table.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-cff2-table.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-color.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-face.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-font.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-outline.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-layout.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-map.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-math.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-meta.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-metrics.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-name.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-arabic.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-default.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-hangul.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-hebrew.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-indic-table.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-indic.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-khmer.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-myanmar.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-syllabic.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-thai.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-use.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-vowel-constraints.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shape-fallback.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shape-normalize.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shape.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-tag.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ot-var.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-set.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-shape-plan.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-shape.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-shaper.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-static.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-style.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ucd.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-unicode.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-ft.cc : phony flags/blank_project_configured
+
+
+build cache/hb-aat-layout.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-aat-layout.cc
+build cache/hb-aat-map.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-aat-map.cc
+build cache/hb-blob.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-blob.cc
+build cache/hb-buffer-serialize.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-buffer-serialize.cc
+build cache/hb-buffer-verify.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-buffer-verify.cc
+build cache/hb-buffer.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-buffer.cc
+build cache/hb-common.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-common.cc
+build cache/hb-draw.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-draw.cc
+build cache/hb-paint.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-paint.cc
+build cache/hb-paint-extents.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-paint-extents.cc
+build cache/hb-face.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-face.cc
+build cache/hb-face-builder.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-face-builder.cc
+build cache/hb-fallback-shape.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-fallback-shape.cc
+build cache/hb-font.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-font.cc
+build cache/hb-map.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-map.cc
+build cache/hb-number.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-number.cc
+build cache/hb-ot-cff1-table.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-cff1-table.cc
+build cache/hb-ot-cff2-table.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-cff2-table.cc
+build cache/hb-ot-color.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-color.cc
+build cache/hb-ot-face.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-face.cc
+build cache/hb-ot-font.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-font.cc
+build cache/hb-outline.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-outline.cc
+build cache/hb-ot-layout.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-layout.cc
+build cache/hb-ot-map.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-map.cc
+build cache/hb-ot-math.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-math.cc
+build cache/hb-ot-meta.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-meta.cc
+build cache/hb-ot-metrics.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-metrics.cc
+build cache/hb-ot-name.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-name.cc
+build cache/hb-ot-shaper-arabic.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-arabic.cc
+build cache/hb-ot-shaper-default.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-default.cc
+build cache/hb-ot-shaper-hangul.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-hangul.cc
+build cache/hb-ot-shaper-hebrew.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-hebrew.cc
+build cache/hb-ot-shaper-indic-table.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-indic-table.cc
+build cache/hb-ot-shaper-indic.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-indic.cc
+build cache/hb-ot-shaper-khmer.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-khmer.cc
+build cache/hb-ot-shaper-myanmar.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-myanmar.cc
+build cache/hb-ot-shaper-syllabic.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-syllabic.cc
+build cache/hb-ot-shaper-thai.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-thai.cc
+build cache/hb-ot-shaper-use.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-use.cc
+build cache/hb-ot-shaper-vowel-constraints.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shaper-vowel-constraints.cc
+build cache/hb-ot-shape-fallback.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shape-fallback.cc
+build cache/hb-ot-shape-normalize.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shape-normalize.cc
+build cache/hb-ot-shape.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-shape.cc
+build cache/hb-ot-tag.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-tag.cc
+build cache/hb-ot-var.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ot-var.cc
+build cache/hb-set.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-set.cc
+build cache/hb-shape-plan.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-shape-plan.cc
+build cache/hb-shape.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-shape.cc
+build cache/hb-shaper.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-shaper.cc
+build cache/hb-static.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-static.cc
+build cache/hb-style.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-style.cc
+build cache/hb-ucd.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ucd.cc
+build cache/hb-unicode.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-unicode.cc
+
+build cache/hb-ft.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ft.cc
 
 rule clone_alice_ui_editor
   command = cmd /c "git clone https://github.com/ineveraskedforthis/AliceUIEditor.git || (cd AliceUIEditor && git pull origin && cd ..) && touch flags/alice_ui_editor_cloned"
@@ -153,23 +320,34 @@ build flags/dcon_cloned : clone_dcon
 build DataContainer/CommonIncludes/common_types.cpp : phony flags/dcon_cloned
 build DCON.exe : compile_dcon flags/dcon_cloned
 
-build flags/blank_project_cloned | BlankProject/src/filesystem/simple_fs_win.cpp BlankProject/src/filesystem/simple_fs_nix.cpp BlankProject/src/gamestate/uitemplate_serialization.cpp : clone_blank_project
+build flags/blank_project_cloned : clone_blank_project
+
+build BlankProject/src/filesystem/simple_fs_win.cpp : phony flags/blank_project_cloned
+build BlankProject/src/filesystem/simple_fs_nix.cpp : phony flags/blank_project_cloned
+build cache/simple_fs.o : ccpp_game BlankProject/src/filesystem/simple_fs_win.cpp | data.hpp
+
+build BlankProject/build/_deps/harfbuzz-src/src/hb.h : phony flags/blank_project_configured
+build BlankProject/build/_deps/freetype/include/freetype/freetype.h : phony flags/blank_project_configured
+
+build BlankProject/src/gamestate/uitemplate_serialization.cpp : phony flags/blank_project_cloned
+build cache/templates_loading.o : ccpp_game BlankProject/src/gamestate/uitemplate_serialization.cpp | data.hpp
+
 build flags/blank_project_configured : configure_blank_project | flags/blank_project_cloned
 
-build BlankProject/src/text/fonts.cpp : phony flags/blank_project_cloned
+build BlankProject/src/text/fonts.cpp : phony flags/blank_project_cloned | BlankProject/build/_deps/harfbuzz-src/src/hb.h BlankProject/build/_deps/freetype/include/freetype/freetype.h
 
 build BlankProject/src/graphics/asvg.cpp : phony flags/blank_project_cloned
 
-build BlankProject/src/lunasvg/graphics.cpp : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/lunasvg.cpp : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/svgelement.cpp : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/svggeometryelement.cpp : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/svglayoutstate.cpp : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/svgpaintelement.cpp : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/svgparser.cpp : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/svgproperty.cpp : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/svgrenderstate.cpp : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/svgtextelement.cpp : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/graphics.cpp : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/lunasvg.cpp : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/svgelement.cpp : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/svggeometryelement.cpp : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/svglayoutstate.cpp : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/svgpaintelement.cpp : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/svgparser.cpp : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/svgproperty.cpp : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/svgrenderstate.cpp : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/svgtextelement.cpp : phony flags/blank_project_configured
 
 build cache/lunasvg/graphics.o : ccpp_lunasvg BlankProject/src/lunasvg/graphics.cpp
 build cache/lunasvg/lunasvg.o : ccpp_lunasvg BlankProject/src/lunasvg/lunasvg.cpp
@@ -182,17 +360,17 @@ build cache/lunasvg/svgproperty.o : ccpp_lunasvg BlankProject/src/lunasvg/svgpro
 build cache/lunasvg/svgrenderstate.o : ccpp_lunasvg BlankProject/src/lunasvg/svgrenderstate.cpp
 build cache/lunasvg/svgtextelement.o : ccpp_lunasvg BlankProject/src/lunasvg/svgtextelement.cpp
 
-build BlankProject/src/lunasvg/plutovg-blend.c : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/plutovg-canvas.c : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/plutovg-font.c : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/plutovg-ft-math.c : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/plutovg-ft-raster.c : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/plutovg-ft-stroker.c : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/plutovg-matrix.c : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/plutovg-paint.c : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/plutovg-path.c : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/plutovg-rasterize.c : phony flags/blank_project_cloned
-build BlankProject/src/lunasvg/plutovg-surface.c : phony flags/blank_project_cloned
+build BlankProject/src/lunasvg/plutovg-blend.c : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/plutovg-canvas.c : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/plutovg-font.c : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/plutovg-ft-math.c : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/plutovg-ft-raster.c : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/plutovg-ft-stroker.c : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/plutovg-matrix.c : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/plutovg-paint.c : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/plutovg-path.c : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/plutovg-rasterize.c : phony flags/blank_project_configured
+build BlankProject/src/lunasvg/plutovg-surface.c : phony flags/blank_project_configured
 
 build cache/lunasvg/plutovg-blend.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-blend.c
 build cache/lunasvg/plutovg-canvas.o : cc_lunasvg BlankProject/src/lunasvg/plutovg-canvas.c
@@ -221,13 +399,12 @@ build cache/render_alice_ui.o : ccpp_game from_alice_editor_main.cpp | glfw/buil
 
 build cache/sote_functions.o : ccpp_game sote_functions.cpp | data.hpp lua-export.hpp flags/blank_project_configured
 
-build cache/simple_fs.o : ccpp_game BlankProject/src/filesystem/simple_fs_win.cpp | data.hpp
-build cache/templates_loading.o : ccpp_game BlankProject/src/gamestate/uitemplate_serialization.cpp | data.hpp
+build BlankProject/src/graphics/texture.cpp : phony flags/blank_project_cloned
+
 build cache/asvg.o : ccpp_game BlankProject/src/graphics/asvg.cpp
 build cache/texture.o : ccpp_game BlankProject/src/graphics/texture.cpp
-build cache/read_ui_files.o : ccpp_game project_file_writing.cpp
+build cache/read_ui_files.o : ccpp_game project_file_writing.cpp | flags/blank_project_cloned
 build cache/fonts.o : ccpp_game BlankProject/src/text/fonts.cpp | data.hpp
 
 
-
-build 010.exe : link cache/ftsystem.o cache/ftinit.o cache/ftdebug.o cache/ftbase.o cache/ftbbox.o cache/fonts.o cache/ftglyph.o cache/read_ui_files.o cache/texture.o cache/lunasvg/plutovg-surface.o cache/render_alice_ui.o cache/lunasvg/svgtextelement.o cache/lunasvg/lunasvg.o cache/lunasvg/graphics.o cache/lunasvg/svggeometryelement.o cache/lunasvg/svgelement.o cache/lunasvg/svgrenderstate.o cache/lunasvg/svgproperty.o cache/main.o cache/lunasvg/svgparser.o cache/lunasvg/svgpaintelement.o cache/lunasvg/svglayoutstate.o cache/lunasvg/plutovg-canvas.o cache/lunasvg/plutovg-blend.o cache/lunasvg/plutovg-rasterize.o cache/lunasvg/plutovg-path.o cache/lunasvg/plutovg-paint.o cache/lunasvg/plutovg-matrix.o cache/lunasvg/plutovg-ft-stroker.o cache/lunasvg/plutovg-ft-raster.o cache/lunasvg/plutovg-ft-math.o cache/simple_fs.o cache/templates_loading.o cache/asvg.o cache/frustum.o cache/dcon_common.o cache/lunasvg/plutovg-font.o cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o cache/imgui_draw.o cache/imgui.o cache/sote_functions.o | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib
+build 010.exe : link  cache/ft-hb.o cache/hb-ft.o cache/ft-hb-ft.o cache/ftmm.o cache/smooth/smooth.o cache/raster/raster.o cache/sdf/sdf.o cache/src/truetype/truetype.o cache/ftsvg.o cache/ftinit.o cache/hb-aat-layout.o cache/hb-aat-map.o cache/hb-blob.o cache/hb-buffer-serialize.o cache/hb-buffer-verify.o cache/hb-buffer.o cache/hb-common.o cache/hb-draw.o cache/hb-paint.o cache/hb-paint-extents.o cache/hb-face.o cache/hb-face-builder.o cache/hb-fallback-shape.o cache/hb-font.o cache/hb-map.o cache/hb-number.o cache/hb-ot-cff1-table.o cache/hb-ot-cff2-table.o cache/hb-ot-color.o cache/hb-ot-face.o cache/hb-ot-font.o cache/hb-outline.o cache/hb-ot-layout.o cache/hb-ot-map.o cache/hb-ot-math.o cache/hb-ot-meta.o cache/hb-ot-metrics.o cache/hb-ot-name.o cache/hb-ot-shaper-arabic.o cache/hb-ot-shaper-default.o cache/hb-ot-shaper-hangul.o cache/hb-ot-shaper-hebrew.o cache/hb-ot-shaper-indic-table.o cache/hb-ot-shaper-indic.o cache/hb-ot-shaper-khmer.o cache/hb-ot-shaper-myanmar.o cache/hb-ot-shaper-syllabic.o cache/hb-ot-shaper-thai.o cache/hb-ot-shaper-use.o cache/hb-ot-shaper-vowel-constraints.o cache/hb-ot-shape-fallback.o cache/hb-ot-shape-normalize.o cache/hb-ot-shape.o cache/hb-ot-tag.o cache/hb-ot-var.o cache/hb-set.o cache/hb-shape-plan.o cache/hb-shape.o cache/hb-shaper.o cache/hb-static.o cache/hb-style.o cache/hb-ucd.o cache/hb-unicode.o cache/ftbitmap.o cache/ftsystem.o cache/ftdebug.o cache/ftbase.o cache/ftbbox.o cache/ftglyph.o cache/read_ui_files.o cache/texture.o cache/lunasvg/plutovg-surface.o cache/render_alice_ui.o cache/lunasvg/svgtextelement.o cache/lunasvg/lunasvg.o cache/lunasvg/graphics.o cache/lunasvg/svggeometryelement.o cache/lunasvg/svgelement.o cache/lunasvg/svgrenderstate.o cache/lunasvg/svgproperty.o cache/main.o cache/lunasvg/svgparser.o cache/lunasvg/svgpaintelement.o cache/lunasvg/svglayoutstate.o cache/lunasvg/plutovg-canvas.o cache/lunasvg/plutovg-blend.o cache/lunasvg/plutovg-rasterize.o cache/lunasvg/plutovg-path.o cache/lunasvg/plutovg-paint.o cache/lunasvg/plutovg-matrix.o cache/lunasvg/plutovg-ft-stroker.o cache/lunasvg/plutovg-ft-raster.o cache/lunasvg/plutovg-ft-math.o cache/simple_fs.o cache/templates_loading.o cache/asvg.o cache/frustum.o cache/dcon_common.o cache/lunasvg/plutovg-font.o cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o cache/imgui_draw.o cache/imgui.o cache/sote_functions.o cache/fonts.o | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib
