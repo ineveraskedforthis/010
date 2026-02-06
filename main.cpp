@@ -39,6 +39,12 @@
 
 #include "from_alice_editor_main.hpp"
 #include "fonts.hpp"
+#include "opengl_wrapper.hpp"
+#include "text.hpp"
+#include "locale.hpp"
+#include "gui_graphics.hpp"
+#include "alice_ui.hpp"
+#include "text_render.hpp"
 
 // https://stackoverflow.com/a/16323388/10281950
 static int traceback(lua_State *L) {
@@ -2380,7 +2386,7 @@ int main(void) {
 		b.renders = asvg::svg(loaded_file.content.data, size_t(loaded_file.content.file_size), b.base_x, b.base_y);
 	}
 
-
+	float ui_scale = 1.f;
 
 	glfwSetErrorCallback(error_callback);
 	if (!glfwInit())
@@ -2438,6 +2444,8 @@ int main(void) {
 
 	glEnable(GL_DEBUG_OUTPUT);
 	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+	glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);
+	glEnable(GL_LINE_SMOOTH);
 
 	// illumination settings
 	glm::vec3 light_color = glm::vec3(3.f, 3.f, 3.f);
@@ -2445,6 +2453,106 @@ int main(void) {
 	glClearColor(ambient_color.x, ambient_color.y, ambient_color.z, 0.f);
 
 	// load alice ui shader
+
+	glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);
+	glEnable(GL_LINE_SMOOTH);
+
+	ogl::data ogl_state;
+
+	ogl::load_shaders(ogl_state, common_fs); // create shaders
+	ogl::load_global_squares(ogl_state); // create various squares to drive the shaders with
+	ogl::load_special_icons(ogl_state, common_fs);
+
+	text::font_manager font_collection {};
+
+	auto loc = simple_fs::open_directory(assets, NATIVE("localization"));
+	for(auto& ld : simple_fs::list_subdirectories(loc)) {
+		auto def_file = simple_fs::open_file(ld, NATIVE("locale.txt"));
+		if(def_file) {
+			auto contents = simple_fs::view_contents(*def_file);
+			auto ld_name = simple_fs::get_full_name(ld);
+			auto dir_lname = ld_name.substr(ld_name.find_last_of(NATIVE_DIR_SEPARATOR) + 1);
+			printf("locale.txt discovered\n");
+			locale::add_locale(state, simple_fs::native_to_utf8(dir_lname), contents.data, contents.data + contents.file_size);
+		}
+	}
+
+	bool locale_loaded = false;
+	dcon::locale_id current_locale {};
+	for(auto l : state.in_locale) {
+		auto ln = l.get_locale_name();
+		auto ln_sv = std::string_view{ (char const*)ln.begin(), ln.size() };
+		if(ln_sv == "en-US") {
+			font_collection.resolve_locale(state, common_fs, l);
+			locale_loaded = true;
+			current_locale = l;
+			break;
+		}
+	}
+	assert(locale_loaded);
+
+	text::layout internal_layout {};
+
+	internal_layout.contents.clear();
+	internal_layout.number_of_lines = 0;
+
+	auto native_rtl = state.locale_get_native_rtl(current_locale);
+	auto rtl =
+		native_rtl
+		? text::layout_base::rtl_status::rtl
+		: text::layout_base::rtl_status::ltr;
+
+	int text_x = 50;
+	int text_y = 50;
+	int text_box_x = 200;
+	int text_box_y = 200;
+
+	template_project::text_region_template region = ui_templates.label_t[0].primary;
+
+	ui::element_data base_data {};
+	base_data.size.x = 800;
+	base_data.size.y = 800;
+	base_data.position.x = 400;
+	base_data.position.y = 400;
+
+	text::font_id font = state.locale_get_resolved_body_font(current_locale);
+
+	auto grid_unit = example_ui_project.grid_size;
+
+	text::single_line_layout sl{
+		internal_layout,
+		text::layout_parameters{
+			0, 0,
+			static_cast<int16_t>(base_data.size.x - region.h_text_margins * example_ui_project.grid_size * 2),
+			static_cast<int16_t>(base_data.size.y - region.v_text_margins * 2),
+			(uint16_t) (region.font_scale * grid_unit),
+			font,
+			0,
+			alice_ui::convert_align(region.h_text_alignment),
+			text::text_color::green,
+			true,
+			true
+		},
+		rtl
+	};
+
+	text::add_to_layout_box(
+		state,
+		font_collection,
+		sl,
+		sl.box,
+		u"HELLO WORLD",
+		text::text_color::black,
+		std::monostate{},
+		state.locale_get_body_font_features(current_locale),
+		(hb_script_t)state.locale_get_hb_script(current_locale),
+		state.locale_get_resolved_language(current_locale),
+		native_rtl,
+		1.f
+	);
+
+	static auto ink_color = template_project::color_by_name(ui_templates, "ink");
+
 	load_shaders();
 	load_global_squares();
 
@@ -2761,8 +2869,37 @@ int main(void) {
 		ImGui::Render();
 
 		// OPENGL RENDERING HERE
+
 		if (current_scene == game_scene::main_menu) {
 			handle_main_menu(width, height, bg_key, current_settings.ui_scale);
+
+			for(auto& t : internal_layout.contents) {
+				auto& f = font_collection.get_font(font);
+
+				glEnable(GL_BLEND);
+				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				glUseProgram(ogl_state.ui_shader_program);
+				glUniform1i(ogl_state.ui_shader_texture_sampler_uniform, 0);
+				glUniform1i(ogl_state.ui_shader_secondary_texture_sampler_uniform, 1);
+				glUniform1f(ogl_state.ui_shader_screen_width_uniform, float(width) / ui_scale);
+				glUniform1f(ogl_state.ui_shader_screen_height_uniform, float(height) / ui_scale);
+				glUniform1f(ogl_state.ui_shader_gamma_uniform, 1.0f);
+				glViewport(0, 0, width, height);
+				glDepthRange(-1.0f, 1.0f);
+
+				ui::render_text_chunk(
+					font_collection,
+					ogl_state,
+					t,
+					float(600) + t.x,
+					float(600 + t.y),
+					sl.fixed_parameters.font_size,
+					sl.fixed_parameters.font_id,
+					ui_templates.colors[ink_color],
+					ogl::color_modification::none,
+					1.f
+				);
+			}
 		} else if (current_scene == game_scene::world_exploration) {
 			render_world(
 				window,
