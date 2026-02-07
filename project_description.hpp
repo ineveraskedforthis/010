@@ -4,7 +4,9 @@
 #include <vector>
 #include <variant>
 #include <memory>
+#include "text.hpp"
 #include "texture.hpp"
+#include "gui_graphics.hpp"
 
 namespace template_project {
 
@@ -273,6 +275,12 @@ struct table_definition {
 	bool has_highlight_color = false;
 	int32_t template_id = -1;
 };
+
+struct ui_element_data_container_t {
+	text::layout internal_layout;
+	std::string cached_text;
+};
+
 struct ui_element_t {
 	std::vector< data_member> members;
 	std::string name;
@@ -448,6 +456,10 @@ struct window_element_wrapper_t {
 	std::vector<template_alternate> alternates;
 };
 
+struct window_element_data_container_t {
+	std::vector<ui_element_data_container_t> children;
+};
+
 struct open_project_t {
 	native_string project_name;
 	native_string project_directory;
@@ -456,6 +468,10 @@ struct open_project_t {
 	bool omit_lua = false;
 	std::vector<window_element_wrapper_t> windows;
 	std::vector<table_definition> tables;
+
+
+
+	std::vector<window_element_data_container_t> window_instances;
 };
 
 inline table_definition const* table_from_name(open_project_t const& proj, std::string const& name) {

@@ -45,6 +45,7 @@
 #include "gui_graphics.hpp"
 #include "alice_ui.hpp"
 #include "text_render.hpp"
+#include "window.hpp"
 
 // https://stackoverflow.com/a/16323388/10281950
 static int traceback(lua_State *L) {
@@ -53,7 +54,9 @@ static int traceback(lua_State *L) {
 	lua_pushvalue(L, 1);
 	lua_pushinteger(L, 2);
 	lua_call(L, 2, 1);
-	fprintf(stderr, "%s\n", lua_tostring(L, -1));
+	auto error = lua_tostring(L, -1);
+	window::emit_error_message(error, false);
+	fprintf(stderr, "%s\n", error);
 	return 1;
 }
 
@@ -1018,7 +1021,12 @@ static open_project_t example_ui_project {};
 static template_project::project ui_templates {};
 static asvg::file_bank svg_image_files {};
 
-void handle_main_menu(int width, int height, uint32_t bg_key, float ui_scale) {
+void handle_main_menu(
+	ogl::data& ogl_state, text::font_manager& font_collection,
+	window_element_wrapper_t& win,
+	window_element_data_container_t& win_instance,
+	int width, int height, uint32_t bg_key, float ui_scale
+) {
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
 	glViewport(0, 0, (int)width, (int)height);
@@ -1041,18 +1049,18 @@ void handle_main_menu(int width, int height, uint32_t bg_key, float ui_scale) {
 		game_text.associated_texture[bg_key]
 	);
 
-	auto& win = example_ui_project.windows[0];
-
 	auto x = width / 2 - win.wrapped.x_size / 2;
 	auto y = height / 2 - win.wrapped.y_size / 2;
 
 	render_window(
+		ogl_state,
 		common_fs,
+		font_collection,
 		svg_image_files,
 		example_ui_project,
 		ui_templates,
-		win,
-		x, y,
+		win, win_instance,
+		x, y, width, height,
 		false,
 		1.f
 	);
@@ -1878,22 +1886,37 @@ void load_world_from_images(
 	int result;
 
 	lua_pushcfunction(L, traceback);
+	// [traceback
+
 	lua_getfield(L, LUA_GLOBALSINDEX, "sote");
+	// [traceback, sote
+
 	lua_getfield(L, -1, "load_raws");
+	// [traceback, sote, load_raws
+
 	result = lua_pcall(L, 0, LUA_MULTRET, -3);
-	if (result) {
-		// fprintf(stderr, "Failed to run script: %s\n", lua_tostring(L, -1));
-		exit(1);
-	}
-	lua_pop(L, 1);  /* Take the returned value out of the stack */
+	// [traceback, sote
+
+	if (result) exit(1);
+
+	lua_pop(L, 1);
+	// [traceback
 
 	// get world size
+
 	lua_getfield(L, LUA_GLOBALSINDEX, "DEFINES");
+	// [traceback, DEFINES
+
 	lua_getfield(L, -1, "world_size");
+	// [traceback, DEFINES, world_size
+
 	world_size = (int)(lua_tonumber(L, -1));
+	// [traceback, DEFINES, world_size
+
+	lua_pop(L, 2);
+	// [traceback
 
 	// load images
-
 
 	// -- After we create the empty world, we can fill it with data...
 	printf("Loading tectonics map...");
@@ -2312,15 +2335,19 @@ void load_world_from_images(
 	}
 
 
-	lua_pushcfunction(L, traceback); // [.. traceback
-	lua_getfield(L, LUA_GLOBALSINDEX, "sote"); // [.. traceback sote
-	lua_getfield(L, -1, "load_world"); // [.. traceback sote load_world
+	lua_getfield(L, LUA_GLOBALSINDEX, "sote");
+	// [traceback, sote
+
+	lua_getfield(L, -1, "load_world");
+	// [traceback, sote, load_world
+
 	result = lua_pcall(L, 0, 0, -3);
-	if (result) {
-		// fprintf(stderr, "Failed to run script: %s\n", lua_tostring(L, -1));
-		exit(1);
-	}
+	// [traceback, sote
+
+	if (result) exit(1);
+
 	lua_pop(L, 1);
+	// [traceback
 
 	GLsizei map_mode_resolution = world_size;
 	constexpr GLsizei map_mode_layers = 6;
@@ -2348,11 +2375,217 @@ void load_world_from_images(
 
 	generate_cube_sphere(state, world.map, world_size, false);
 	generate_cube_sphere(state, world.sky, world_size, true);
+
+	{
+		// really basic
+		// to be replaced with whatever squealing is doing in the shadows
+		printf("Spawn races");
+		state.pop_resize_dna(20);
+		state.for_each_race([&](dcon::race_id race){
+			state.for_each_tile([&](dcon::tile_id tile){
+				auto settlement = state.tile_get_settlement_from_settlement_tile(tile);
+				if (settlement) return;
+				if (!state.tile_get_is_land(tile)) return;
+
+
+				if (state.race_get_requires_large_river(race)) {
+					if (!state.tile_get_has_river(tile)) return;
+				}
+
+				if (state.race_get_requires_large_forest(race)) {
+					if(state.tile_get_conifer(tile) + state.tile_get_broadleaf(tile) < 0.5) return;
+				}
+
+				auto elevation = state.tile_get_elevation(tile);
+
+				auto january_temp = state.tile_get_january_temperature(tile);
+				auto july_temp = state.tile_get_july_temperature(tile);
+				auto min_temp = std::min(january_temp, july_temp);
+				auto avg_temp = (july_temp + january_temp) / 2.f;
+
+				if (state.race_get_minimum_comfortable_temperature(race) > avg_temp) return;
+				if (state.race_get_minimum_absolute_temperature(race) > min_temp) return;
+				if (state.race_get_minimum_comfortable_elevation(race) > elevation) return;
+
+				if (world.uniform(world.rng) > 0.0001f) return;
+
+				auto s = state.create_settlement();
+				state.force_create_settlement_tile(s, tile);
+
+				auto leader = state.create_pop();
+				state.force_create_pop_location(s, leader);
+				state.pop_set_race(leader, race);
+				// set dna
+				for (int i = 0; i < 20; i ++) {
+					state.pop_set_dna(leader, i, world.uniform(world.rng));
+				}
+			});
+		});
+	}
+
+	lua_pop(L, 1);
+	// [
 }
 
-void update_ui(lua_State* L, open_project_t project) {
-	std::string ui_path = simple_fs::native_to_utf8(project.project_name);
+void set_text(
+	std::string text,
+	dcon::data_container& state,
+	text::font_manager& font_collection,
+	text::layout& internal_layout,
+	int size_x, int size_y,
+	template_project::text_region_template region,
+	dcon::locale_id current_locale,
+	int grid_unit,
+	bool is_header
+) {
+	text::font_id font = state.locale_get_resolved_body_font(current_locale);
+	if (is_header) {
+		font = state.locale_get_resolved_header_font(current_locale);
+	}
 
+	auto native_rtl = state.locale_get_native_rtl(current_locale);
+	auto rtl =
+		native_rtl
+		? text::layout_base::rtl_status::rtl
+		: text::layout_base::rtl_status::ltr;
+
+	text::single_line_layout sl{
+		internal_layout,
+		text::layout_parameters{
+			0, 0,
+			static_cast<int16_t>(size_x - region.h_text_margins * example_ui_project.grid_size * 2),
+			static_cast<int16_t>(size_y - region.v_text_margins * 2),
+			(uint16_t) (region.font_scale * grid_unit),
+			font,
+			0,
+			alice_ui::convert_align(region.h_text_alignment),
+			text::text_color::green,
+			true,
+			true
+		},
+		rtl
+	};
+
+	text::add_to_layout_box(
+		state,
+		font_collection,
+		sl,
+		sl.box,
+		simple_fs::utf8_to_utf16(text),
+		text::text_color::black,
+		std::monostate{},
+		state.locale_get_body_font_features(current_locale),
+		(hb_script_t)state.locale_get_hb_script(current_locale),
+		state.locale_get_resolved_language(current_locale),
+		native_rtl,
+		1.f
+	);
+}
+
+void update_ui(
+	lua_State* L,
+	dcon::data_container& state,
+	text::font_manager& font_collection,
+	open_project_t& project,
+	template_project::project& ui_templates,
+	window_element_wrapper_t& window_prototype,
+	window_element_data_container_t& window_instance,
+	dcon::locale_id current_locale
+) {
+	if (window_instance.children.size() == 0) {
+		window_instance.children.resize(window_prototype.children.size());
+	}
+
+	lua_pushcfunction(L, traceback);
+	// [traceback
+
+	std::string project_name = simple_fs::native_to_utf8(project.project_name);
+
+	lua_getfield(L, LUA_GLOBALSINDEX, "UI_LOGIC");
+	if (lua_isnil(L, -1)) {
+		window::emit_error_message("Missing " + project_name + "  UI_LOGIC table!", true);
+	}
+	// [traceback, UI_LOGIC
+
+	lua_getfield(L, -1, project_name.c_str());
+	// [traceback, UI_LOGIC, project name
+	if (lua_isnil(L, -1)) {
+		window::emit_error_message("Missing " + project_name + "  lua table!", true);
+	}
+
+	lua_getfield(L, -1, window_prototype.wrapped.name.c_str());
+	if (lua_isnil(L, -1)) {
+		window::emit_error_message(
+			"Missing " + project_name + "." + window_prototype.wrapped.name + " lua table!",
+			true
+		);
+	}
+	// [traceback, UI_LOGIC, project name, window name
+
+	int result;
+
+	for(int item_index = 0; item_index < window_prototype.children.size(); item_index++) {
+		auto& item_prototype = window_prototype.children[item_index];
+		auto& item_instance = window_instance.children[item_index];
+
+		std::string item_name = item_prototype.name;
+		lua_getfield(L, -1, item_name.c_str());
+		// [traceback, project name, window name, item name
+		if (lua_isnil(L, -1)) {
+			window::emit_error_message("Missing " + project_name + "." + item_name + " lua table!", true);
+		}
+
+		auto template_id = item_prototype.template_id;
+		if (template_id == -1) {
+			window::emit_error_message(
+				"Element " + item_prototype.name + " from "+ project_name + " has no template!",
+				true
+			);
+		}
+
+		bool has_text = false;
+		auto item_type = item_prototype.ttype;
+		template_project::text_region_template region;
+		if(item_type == template_project::template_type::label) {
+			region = ui_templates.label_t[template_id].primary;
+			has_text = true;
+		} else if(item_type == template_project::template_type::button) {
+			region = ui_templates.button_t[template_id].primary;
+			has_text = true;
+		}
+
+		if (has_text) {
+			lua_getfield(L, -1, "text");
+			// [traceback, UI_LOGIC, project name, window name, item name, text_getter
+			result = lua_pcall(L, 0, LUA_MULTRET, -6);
+			if (result) exit(1);
+			// [traceback, UI_LOGIC, project name, window name, item name, actual text
+			std::string text = lua_tostring(L, -1);
+			// [traceback, UI_LOGIC, project name, window name, item name, actual text
+
+			set_text(
+				text,
+				state,
+				font_collection,
+				item_instance.internal_layout,
+				item_prototype.x_size,
+				item_prototype.y_size,
+				region,
+				current_locale,
+				project.grid_size,
+				item_prototype.text_type == text_type::header
+			);
+
+			lua_pop(L, 1);
+			// [traceback, UI_LOGIC, project name, window name, item name
+		}
+
+		lua_pop(L, 1);
+		// [traceback, UI_LOGIC, project name, window name
+	}
+
+	lua_pop(L, 4);
+	// [
 }
 
 int main(void) {
@@ -2490,66 +2723,6 @@ int main(void) {
 		}
 	}
 	assert(locale_loaded);
-
-	text::layout internal_layout {};
-
-	internal_layout.contents.clear();
-	internal_layout.number_of_lines = 0;
-
-	auto native_rtl = state.locale_get_native_rtl(current_locale);
-	auto rtl =
-		native_rtl
-		? text::layout_base::rtl_status::rtl
-		: text::layout_base::rtl_status::ltr;
-
-	int text_x = 50;
-	int text_y = 50;
-	int text_box_x = 200;
-	int text_box_y = 200;
-
-	template_project::text_region_template region = ui_templates.label_t[0].primary;
-
-	ui::element_data base_data {};
-	base_data.size.x = 800;
-	base_data.size.y = 800;
-	base_data.position.x = 400;
-	base_data.position.y = 400;
-
-	text::font_id font = state.locale_get_resolved_body_font(current_locale);
-
-	auto grid_unit = example_ui_project.grid_size;
-
-	text::single_line_layout sl{
-		internal_layout,
-		text::layout_parameters{
-			0, 0,
-			static_cast<int16_t>(base_data.size.x - region.h_text_margins * example_ui_project.grid_size * 2),
-			static_cast<int16_t>(base_data.size.y - region.v_text_margins * 2),
-			(uint16_t) (region.font_scale * grid_unit),
-			font,
-			0,
-			alice_ui::convert_align(region.h_text_alignment),
-			text::text_color::green,
-			true,
-			true
-		},
-		rtl
-	};
-
-	text::add_to_layout_box(
-		state,
-		font_collection,
-		sl,
-		sl.box,
-		u"HELLO WORLD",
-		text::text_color::black,
-		std::monostate{},
-		state.locale_get_body_font_features(current_locale),
-		(hb_script_t)state.locale_get_hb_script(current_locale),
-		state.locale_get_resolved_language(current_locale),
-		native_rtl,
-		1.f
-	);
 
 	static auto ink_color = template_project::color_by_name(ui_templates, "ink");
 
@@ -2706,6 +2879,9 @@ int main(void) {
 	lua_newtable(L);
 	lua_setglobal(L, "sote");
 
+	lua_newtable(L);
+	lua_setglobal(L, "UI_LOGIC");
+
 	result = lua_pcall(L, 0, LUA_MULTRET, 0);
 	if (result) {
 		if (result == LUA_ERRRUN) {
@@ -2721,55 +2897,23 @@ int main(void) {
 		exit(1);
 	}
 
-	  /* Cya, Lua */
-
-	{
-		// really basic
-		// to be replaced with whatever squealing is doing in the shadows
-		printf("Spawn races");
-		state.pop_resize_dna(20);
-		state.for_each_race([&](dcon::race_id race){
-			state.for_each_tile([&](dcon::tile_id tile){
-				auto settlement = state.tile_get_settlement_from_settlement_tile(tile);
-				if (settlement) return;
-				if (!state.tile_get_is_land(tile)) return;
-
-
-				if (state.race_get_requires_large_river(race)) {
-					if (!state.tile_get_has_river(tile)) return;
-				}
-
-				if (state.race_get_requires_large_forest(race)) {
-					if(state.tile_get_conifer(tile) + state.tile_get_broadleaf(tile) < 0.5) return;
-				}
-
-				auto elevation = state.tile_get_elevation(tile);
-
-				auto january_temp = state.tile_get_january_temperature(tile);
-				auto july_temp = state.tile_get_july_temperature(tile);
-				auto min_temp = std::min(january_temp, july_temp);
-				auto avg_temp = (july_temp + january_temp) / 2.f;
-
-				if (state.race_get_minimum_comfortable_temperature(race) > avg_temp) return;
-				if (state.race_get_minimum_absolute_temperature(race) > min_temp) return;
-				if (state.race_get_minimum_comfortable_elevation(race) > elevation) return;
-
-				if (world.uniform(world.rng) > 0.0001f) return;
-
-				auto s = state.create_settlement();
-				state.force_create_settlement_tile(s, tile);
-
-				auto leader = state.create_pop();
-				state.force_create_pop_location(s, leader);
-				state.pop_set_race(leader, race);
-				// set dna
-				for (int i = 0; i < 20; i ++) {
-					state.pop_set_dna(leader, i, world.uniform(world.rng));
-				}
-			});
-		});
+	std::string path_to_ui_script = "./ui_scripts/";
+	path_to_ui_script += simple_fs::native_to_utf8(example_ui_project.project_name) + ".lua";
+	status = luaL_dofile(L,  path_to_ui_script.c_str());
+	if (status) {
+		fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
+		exit(1);
 	}
 
+	auto& example_window = example_ui_project.windows[0];
+	window_element_data_container_t example_window_instance {};
+
+	update_ui(
+		L, state, font_collection,
+		example_ui_project, ui_templates,
+		example_window, example_window_instance,
+		current_locale
+	);
 
 	game::simple_mesh square {};
 	generate_square(square);
@@ -2871,35 +3015,11 @@ int main(void) {
 		// OPENGL RENDERING HERE
 
 		if (current_scene == game_scene::main_menu) {
-			handle_main_menu(width, height, bg_key, current_settings.ui_scale);
-
-			for(auto& t : internal_layout.contents) {
-				auto& f = font_collection.get_font(font);
-
-				glEnable(GL_BLEND);
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				glUseProgram(ogl_state.ui_shader_program);
-				glUniform1i(ogl_state.ui_shader_texture_sampler_uniform, 0);
-				glUniform1i(ogl_state.ui_shader_secondary_texture_sampler_uniform, 1);
-				glUniform1f(ogl_state.ui_shader_screen_width_uniform, float(width) / ui_scale);
-				glUniform1f(ogl_state.ui_shader_screen_height_uniform, float(height) / ui_scale);
-				glUniform1f(ogl_state.ui_shader_gamma_uniform, 1.0f);
-				glViewport(0, 0, width, height);
-				glDepthRange(-1.0f, 1.0f);
-
-				ui::render_text_chunk(
-					font_collection,
-					ogl_state,
-					t,
-					float(600) + t.x,
-					float(600 + t.y),
-					sl.fixed_parameters.font_size,
-					sl.fixed_parameters.font_id,
-					ui_templates.colors[ink_color],
-					ogl::color_modification::none,
-					1.f
-				);
-			}
+			handle_main_menu(
+				ogl_state, font_collection,
+				example_window, example_window_instance,
+				width, height, bg_key, current_settings.ui_scale
+			);
 		} else if (current_scene == game_scene::world_exploration) {
 			render_world(
 				window,
@@ -2934,6 +3054,7 @@ int main(void) {
 	ImGui::DestroyContext();
 	glfwDestroyWindow(window);
 	glfwTerminate();
+	/* Cya, Lua */
 	lua_close(L);
 	return 0;
 }
