@@ -279,6 +279,7 @@ struct table_definition {
 struct ui_element_data_container_t {
 	text::layout internal_layout;
 	std::string cached_text;
+	uint64_t id;
 };
 
 struct ui_element_t {
@@ -456,8 +457,13 @@ struct window_element_wrapper_t {
 	std::vector<template_alternate> alternates;
 };
 
+
 struct window_element_data_container_t {
 	std::vector<ui_element_data_container_t> children;
+};
+
+struct ui_container_t {
+	std::vector<window_element_data_container_t> windows;
 };
 
 struct open_project_t {

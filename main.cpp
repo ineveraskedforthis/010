@@ -46,6 +46,11 @@
 #include "alice_ui.hpp"
 #include "text_render.hpp"
 #include "window.hpp"
+#include "ui_containers.hpp"
+
+
+uint64_t available_window_id = 1;
+
 
 // https://stackoverflow.com/a/16323388/10281950
 static int traceback(lua_State *L) {
@@ -1025,7 +1030,9 @@ void handle_main_menu(
 	ogl::data& ogl_state, text::font_manager& font_collection,
 	window_element_wrapper_t& win,
 	window_element_data_container_t& win_instance,
-	int width, int height, uint32_t bg_key, float ui_scale
+	int width, int height,
+	mouse_probe& probe,
+	uint32_t bg_key, float ui_scale
 ) {
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
@@ -1049,8 +1056,8 @@ void handle_main_menu(
 		game_text.associated_texture[bg_key]
 	);
 
-	auto x = width / 2 - win.wrapped.x_size / 2;
-	auto y = height / 2 - win.wrapped.y_size / 2;
+	auto x = (float)width / 2.f - win.wrapped.x_size * ui_scale / 2.f;
+	auto y = (float)height / 2.f - win.wrapped.y_size * ui_scale / 2.f;
 
 	render_window(
 		ogl_state,
@@ -1060,9 +1067,9 @@ void handle_main_menu(
 		example_ui_project,
 		ui_templates,
 		win, win_instance,
-		x, y, width, height,
+		x / ui_scale, y / ui_scale, width, height, probe,
 		false,
-		1.f
+		ui_scale
 	);
 
 	assert_no_errors();
@@ -1872,10 +1879,30 @@ void render_characters(
 }
 
 enum class game_scene {
-	main_menu,
-	world_exploration,
-	game
+	main_menu = 0,
+	loading_images = 1,
+	world_generation = 2,
+	world_exploration = 3,
+	game = 4,
+	total = 5
 };
+
+game_scene current_scene = game_scene::main_menu;
+bool settings_opened = false;
+
+extern "C" {
+	DCON_LUADLL_API void change_scene(uint8_t scene) {
+		if (scene >= (uint8_t)game_scene::total) {
+			window::emit_error_message("Invalid scene", false);
+			return;
+		}
+		current_scene = (game_scene)(scene);
+	}
+
+	DCON_LUADLL_API void toggle_settings_window() {
+		settings_opened = !settings_opened;
+	}
+}
 
 void load_world_from_images(
 	lua_State* L,
@@ -2436,7 +2463,8 @@ void set_text(
 	template_project::text_region_template region,
 	dcon::locale_id current_locale,
 	int grid_unit,
-	bool is_header
+	bool is_header,
+	float ui_scale
 ) {
 	text::font_id font = state.locale_get_resolved_body_font(current_locale);
 	if (is_header) {
@@ -2448,6 +2476,9 @@ void set_text(
 		native_rtl
 		? text::layout_base::rtl_status::rtl
 		: text::layout_base::rtl_status::ltr;
+
+	internal_layout.contents.clear();
+	internal_layout.number_of_lines = 0;
 
 	text::single_line_layout sl{
 		internal_layout,
@@ -2478,7 +2509,7 @@ void set_text(
 		(hb_script_t)state.locale_get_hb_script(current_locale),
 		state.locale_get_resolved_language(current_locale),
 		native_rtl,
-		1.f
+		ui_scale
 	);
 }
 
@@ -2490,7 +2521,8 @@ void update_ui(
 	template_project::project& ui_templates,
 	window_element_wrapper_t& window_prototype,
 	window_element_data_container_t& window_instance,
-	dcon::locale_id current_locale
+	dcon::locale_id current_locale,
+	float ui_scale
 ) {
 	if (window_instance.children.size() == 0) {
 		window_instance.children.resize(window_prototype.children.size());
@@ -2573,7 +2605,8 @@ void update_ui(
 				region,
 				current_locale,
 				project.grid_size,
-				item_prototype.text_type == text_type::header
+				item_prototype.text_type == text_type::header,
+				ui_scale
 			);
 
 			lua_pop(L, 1);
@@ -2586,6 +2619,118 @@ void update_ui(
 
 	lua_pop(L, 4);
 	// [
+}
+
+struct mouse_click {
+	double x;
+	double y;
+	double time;
+	bool release;
+};
+
+mouse_click clicks_buffer[256];
+uint8_t clicks_buffer_left=0;
+uint8_t clicks_buffer_right=0;
+
+void handle_ui_click(
+	lua_State* L,
+	mouse_probe& probe,
+	open_project_t& project,
+	window_element_data_container_t& window,
+	window_element_wrapper_t& window_prototype
+){
+	if (!probe.control_id) return;
+	auto& c = window.children[probe.control_id];
+	lua_pushcfunction(L, traceback);
+	// [traceback
+
+	std::string project_name = simple_fs::native_to_utf8(project.project_name);
+
+	lua_getfield(L, LUA_GLOBALSINDEX, "UI_LOGIC");
+	if (lua_isnil(L, -1)) {
+		window::emit_error_message("Missing " + project_name + "  UI_LOGIC table!", true);
+	}
+	// [traceback, UI_LOGIC
+
+	lua_getfield(L, -1, project_name.c_str());
+	// [traceback, UI_LOGIC, project name
+	if (lua_isnil(L, -1)) {
+		window::emit_error_message("Missing " + project_name + "  lua table!", true);
+	}
+
+	lua_getfield(L, -1, window_prototype.wrapped.name.c_str());
+	if (lua_isnil(L, -1)) {
+		window::emit_error_message(
+			"Missing " + project_name + "." + window_prototype.wrapped.name + " lua table!",
+			true
+		);
+	}
+
+	int result;
+	auto& item_prototype = window_prototype.children[probe.control_id];
+	auto& item_instance = window.children[probe.control_id];
+
+	std::string item_name = item_prototype.name;
+	lua_getfield(L, -1, item_name.c_str());
+	// [traceback, project name, window name, item name
+	if (lua_isnil(L, -1)) {
+		window::emit_error_message("Missing " + project_name + "." + item_name + " lua table!", true);
+	}
+
+	auto template_id = item_prototype.template_id;
+	if (template_id == -1) {
+		window::emit_error_message(
+			"Element " + item_prototype.name + " from "+ project_name + " has no template!",
+			true
+		);
+	}
+
+	bool active = false;
+	auto item_type = item_prototype.ttype;
+	template_project::text_region_template region;
+	if(item_type == template_project::template_type::button) {
+		region = ui_templates.button_t[template_id].primary;
+		active = true;
+	}
+
+	if (active) {
+		lua_getfield(L, -1, "left_click");
+		// [traceback, UI_LOGIC, project name, window name, item name, click handler
+		if (lua_isnil(L, -1)) {
+			window::emit_error_message("Missing " + project_name + "." + window_prototype.wrapped.name + "." + item_name + ".left_click function!", true);
+		}
+
+		result = lua_pcall(L, 0, LUA_MULTRET, -6);
+		if (result) exit(1);
+		// [traceback, UI_LOGIC, project name, window name, item name
+	}
+
+	lua_pop(L, 5);
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+	ImGuiIO& io = ImGui::GetIO();
+	io.AddMouseButtonEvent(button, action == GLFW_PRESS);
+
+	// (2) ONLY forward mouse data to your underlying app/game.
+	if (io.WantCaptureMouse) return;
+
+	double mouse_x;
+	double mouse_y;
+	glfwGetCursorPos(window, &mouse_x, &mouse_y);
+
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+		clicks_buffer[clicks_buffer_right].release = false;
+		clicks_buffer[clicks_buffer_right].x = mouse_x;
+		clicks_buffer[clicks_buffer_right].y = mouse_y;
+		clicks_buffer_right++;
+	} else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+		clicks_buffer[clicks_buffer_right].release = true;
+		clicks_buffer[clicks_buffer_right].x = mouse_x;
+		clicks_buffer[clicks_buffer_right].y = mouse_y;
+		clicks_buffer_right++;
+	}
 }
 
 int main(void) {
@@ -2618,8 +2763,6 @@ int main(void) {
 		simple_fs::file loaded_file{  example_ui_project.project_directory + svg_image_files.root_directory + simple_fs::utf8_to_native(b.file_name) };
 		b.renders = asvg::svg(loaded_file.content.data, size_t(loaded_file.content.file_size), b.base_x, b.base_y);
 	}
-
-	float ui_scale = 1.f;
 
 	glfwSetErrorCallback(error_callback);
 	if (!glfwInit())
@@ -2908,11 +3051,14 @@ int main(void) {
 	auto& example_window = example_ui_project.windows[0];
 	window_element_data_container_t example_window_instance {};
 
+	settings current_settings {};
+	current_settings.ui_scale = 1.f;
+
 	update_ui(
 		L, state, font_collection,
 		example_ui_project, ui_templates,
 		example_window, example_window_instance,
-		current_locale
+		current_locale, current_settings.ui_scale
 	);
 
 	game::simple_mesh square {};
@@ -2929,7 +3075,6 @@ int main(void) {
 	int tick = 0;
 	float data[512] {};
 
-	game_scene current_scene = game_scene::main_menu;
 
 	world_rendering_data world_opengl_data {
 		.shadow_layers = shadow_layers,
@@ -2968,8 +3113,10 @@ int main(void) {
 
 	camera_data camera_opengl_data {};
 
-	settings current_settings {};
-	current_settings.ui_scale = 1.f;
+
+	mouse_probe probe;
+
+	glfwSetMouseButtonCallback(window, mouse_button_callback);
 
 	double last_time = glfwGetTime();
 	while (!glfwWindowShouldClose(window))
@@ -3008,9 +3155,43 @@ int main(void) {
 		const float TEXT_BASE_HEIGHT = ImGui::GetTextLineHeightWithSpacing();
 
 		// IMGUI CODE HERE
+		if (settings_opened) {
+			ImGui::Begin("Settings");
 
+			float old_scale = current_settings.ui_scale;
+
+			ImGui::SliderFloat(
+				"UI scale", &current_settings.ui_scale, 0.25f, 4.f,
+				"%.2f", ImGuiSliderFlags_AlwaysClamp
+			);
+
+			current_settings.ui_scale = round(current_settings.ui_scale * 4.f) / 4.f;
+
+			if (old_scale != current_settings.ui_scale) {
+				update_ui(
+					L, state, font_collection,
+					example_ui_project, ui_templates,
+					example_window, example_window_instance,
+					current_locale, current_settings.ui_scale
+				);
+			}
+
+			ImGui::End();
+		}
 
 		ImGui::Render();
+
+		double mouse_x;
+		double mouse_y;
+		glfwGetCursorPos(window, &mouse_x, &mouse_y);
+
+		probe.x = mouse_x;
+		probe.y = mouse_y;
+		probe.last_frame_control_id = probe.control_id;
+		probe.last_frame_window_id = probe.window_id;
+		probe.control_id = 0;
+		probe.window_id = 0;
+
 
 		// OPENGL RENDERING HERE
 
@@ -3018,7 +3199,7 @@ int main(void) {
 			handle_main_menu(
 				ogl_state, font_collection,
 				example_window, example_window_instance,
-				width, height, bg_key, current_settings.ui_scale
+				width, height, probe, bg_key, current_settings.ui_scale
 			);
 		} else if (current_scene == game_scene::world_exploration) {
 			render_world(
@@ -3046,6 +3227,19 @@ int main(void) {
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 		assert_no_errors();
+
+		while (clicks_buffer_left != clicks_buffer_right) {
+			if (clicks_buffer[clicks_buffer_left].release) {
+				handle_ui_click(
+					L,
+					probe,
+					example_ui_project,
+					example_window_instance,
+					example_window
+				);
+			}
+			clicks_buffer_left++;
+		}
 	}
 
 	// Cleanup

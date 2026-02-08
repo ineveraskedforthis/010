@@ -4,6 +4,11 @@
 #include "from_alice_editor_main.hpp"
 #include "opengl_wrapper.hpp"
 #include "text_render.hpp"
+#include "window.hpp"
+#include "ui_containers.hpp"
+
+extern uint64_t available_control_id;
+extern uint64_t available_window_id;
 
 std::string_view opengl_get_error_name(GLenum t);
 std::string to_string(std::string_view str);
@@ -79,7 +84,47 @@ struct layout_item_position {
 	}
 };
 
-void render_control(
+void render_text_layout(
+	ogl::data& ogl_state,
+	text::font_manager& font_collection,
+	ui_element_t& c,
+	ui_element_data_container_t& data,
+	float x, float y, float ui_scale,
+	int game_width, int game_height,
+	ogl::color3f ink_color
+) {
+	for(auto& t : data.internal_layout.contents) {
+		auto linesz = font_collection.line_height(t.font, t.font_size, ui_scale);
+		auto ycentered = (c.y_size - linesz) / 2;
+		auto& f = font_collection.get_font(t.font);
+
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glUseProgram(ogl_state.ui_shader_program);
+		glUniform1i(ogl_state.ui_shader_texture_sampler_uniform, 0);
+		glUniform1i(ogl_state.ui_shader_secondary_texture_sampler_uniform, 1);
+		glUniform1f(ogl_state.ui_shader_screen_width_uniform, float(game_width) / ui_scale);
+		glUniform1f(ogl_state.ui_shader_screen_height_uniform, float(game_height) / ui_scale);
+		glUniform1f(ogl_state.ui_shader_gamma_uniform, 1.0f);
+		glViewport(0, 0, game_width, game_height);
+		glDepthRange(-1.0f, 1.0f);
+
+		ui::render_text_chunk(
+			font_collection,
+			ogl_state,
+			t,
+			x + t.x,
+			float(y + ycentered),
+			t.font_size,
+			t.font,
+			ink_color,
+			ogl::color_modification::none,
+			ui_scale
+		);
+	}
+}
+
+void render_label(
 	ogl::data& ogl_state,
 	simple_fs::file_system const& fs,
 	text::font_manager& font_collection,
@@ -89,7 +134,110 @@ void render_control(
 	ui_element_t& c, ui_element_data_container_t& data,
 	float x, float y, float ui_scale, int width, int height
 ) {
+	if(c.template_id == -1) window::emit_error_message("Missing template: " + c.name, true);
+	auto bg = open_templates.label_t[c.template_id].primary.bg;
+	if (bg == -1) window::emit_error_message("Missing background: " + c.name, true);
+	auto& renders = open_templates.backgrounds[bg].renders;
+	auto prepared = renders.get_render(
+		fs,
+		svg_image_files,
+		c.x_size / float(open_project.grid_size),
+		c.y_size / float(open_project.grid_size),
+		open_project.grid_size,
+		2.0f
+	);
+	render_textured_rect(
+		color3f{ 0.f, 0.f, 0.f },
+		x * ui_scale,
+		y * ui_scale,
+		std::max(1, int32_t(c.x_size * ui_scale)),
+		std::max(1, int32_t(c.y_size * ui_scale)),
+		prepared
+	);
+	ogl::color3f  ink_color = ogl::color3f(open_templates.colors[open_templates.label_t[c.template_id].primary.text_color]);
+	render_text_layout(
+		ogl_state, font_collection,
+		c, data, x, y, ui_scale,
+		width, height,
+		ink_color
+	);
+}
 
+void render_button(
+	ogl::data& ogl_state,
+	simple_fs::file_system const& fs,
+	text::font_manager& font_collection,
+	asvg::file_bank& svg_image_files,
+	open_project_t& open_project,
+	template_project::project& open_templates,
+	ui_element_t& c, ui_element_data_container_t& data,
+	float x, float y, float ui_scale, int width, int height,
+	mouse_probe& probe
+) {
+	if(c.template_id == -1) window::emit_error_message("Missing template: " + c.name, true);
+	auto& c_template = open_templates.button_t[c.template_id];
+
+	float under_mouse = true;
+	if (probe.x < x * ui_scale) under_mouse = false;
+	if (probe.y < y * ui_scale) under_mouse = false;
+	if (probe.x > (x + c.x_size) * ui_scale) under_mouse = false;
+	if (probe.y > (y + c.y_size) * ui_scale) under_mouse = false;
+
+	// auto ink_color = ogl::color3f(ui_templates.colors[])
+
+	auto text_color = c_template.primary.text_color;
+	auto bg = c_template.primary.bg;
+
+	if (probe.last_frame_control_id == data.id) {
+		text_color = c_template.active.bg;
+		bg = c_template.active.bg;
+	}
+
+	if (bg == -1) window::emit_error_message("Missing background: " + c.name, true);
+	if (text_color == -1) window::emit_error_message("Missing text color: " + c.name, true);
+
+	auto& renders = open_templates.backgrounds[bg].renders;
+	auto prepared = renders.get_render(
+		fs,
+		svg_image_files,
+		c.x_size / float(open_project.grid_size),
+		c.y_size / float(open_project.grid_size),
+		open_project.grid_size,
+		2.0f
+	);
+	render_textured_rect(
+		color3f{ 0.f, 0.f, 0.f },
+		x * ui_scale,
+		y * ui_scale,
+		std::max(1, int32_t(c.x_size * ui_scale)),
+		std::max(1, int32_t(c.y_size * ui_scale)),
+		prepared
+	);
+
+	ogl::color3f ink_color = ogl::color3f(open_templates.colors[text_color]);
+	render_text_layout(
+		ogl_state, font_collection,
+		c, data, x, y, ui_scale,
+		width, height,
+		ink_color
+	);
+
+	if (under_mouse) {
+		probe.control_id = data.id;
+	}
+}
+
+void render_control(
+	ogl::data& ogl_state,
+	simple_fs::file_system const& fs,
+	text::font_manager& font_collection,
+	asvg::file_bank& svg_image_files,
+	open_project_t& open_project,
+	template_project::project& open_templates,
+	ui_element_t& c, ui_element_data_container_t& data,
+	float x, float y, float ui_scale, int width, int height,
+	mouse_probe& probe
+) {
 	bool has_text = false;
 
 	use_program(width, height);
@@ -114,32 +262,29 @@ void render_control(
 	ogl::color3f ink_color {};
 
 	if(c.ttype == template_project::template_type::label) {
-		has_text = true;
-		if(c.template_id != -1) {
-			ink_color = ogl::color3f(open_templates.colors[open_templates.label_t[c.template_id].primary.text_color]);
-			auto bg = open_templates.label_t[c.template_id].primary.bg;
-			if(bg != -1)
-				render_asvg_rect(open_templates.backgrounds[bg].renders, (x * ui_scale), (y * ui_scale),  c.x_size, c.y_size, open_project.grid_size);
-			else
-				render_empty_rect(c.rectangle_color, (x * ui_scale), (y * ui_scale), std::max(1, int32_t(c.x_size * ui_scale)), std::max(1, int32_t(c.y_size * ui_scale)));
-		} else {
-			render_empty_rect(c.rectangle_color, (x * ui_scale), (y * ui_scale), std::max(1, int32_t(c.x_size * ui_scale)), std::max(1, int32_t(c.y_size * ui_scale)));
-		}
+		render_label(
+			ogl_state,
+			fs,
+			font_collection,
+			svg_image_files,
+			open_project,
+			open_templates,
+			c, data,
+			x, y, ui_scale, width, height
+		);
 	}
 	if(c.ttype == template_project::template_type::button) {
-		has_text = true;
-
-		if(c.template_id != -1) {
-			ink_color = ogl::color3f(open_templates.colors[open_templates.button_t[c.template_id].primary.text_color]);
-			auto bg = open_templates.button_t[c.template_id].primary.bg;
-			if(bg != -1)
-				render_asvg_rect(open_templates.backgrounds[bg].renders, (x * ui_scale), (y * ui_scale), c.x_size, c.y_size, open_project.grid_size);
-			else
-				render_empty_rect(c.rectangle_color, (x * ui_scale), (y * ui_scale), std::max(1, int32_t(c.x_size * ui_scale)), std::max(1, int32_t(c.y_size * ui_scale)));
-		} else {
-			render_empty_rect(c.rectangle_color, (x * ui_scale), (y * ui_scale), std::max(1, int32_t(c.x_size * ui_scale)), std::max(1, int32_t(c.y_size * ui_scale)));
-		}
-
+		render_button(
+			ogl_state,
+			fs,
+			font_collection,
+			svg_image_files,
+			open_project,
+			open_templates,
+			c, data,
+			x, y, ui_scale, width, height,
+			probe
+		);
 	}
 	if(c.ttype == template_project::template_type::legacy_control) {
 		render_empty_rect(c.rectangle_color, (x * ui_scale), (y * ui_scale), std::max(1, int32_t(c.x_size * ui_scale)), std::max(1, int32_t(c.y_size * ui_scale)));
@@ -390,41 +535,6 @@ void render_control(
 		}
 	}
 	*/
-
-
-	if (has_text) {
-
-		for(auto& t : data.internal_layout.contents) {
-			auto linesz = font_collection.line_height(t.font, t.font_size, ui_scale);
-			auto ycentered = (c.y_size - linesz) / 2;
-			auto& f = font_collection.get_font(t.font);
-
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			glUseProgram(ogl_state.ui_shader_program);
-			glUniform1i(ogl_state.ui_shader_texture_sampler_uniform, 0);
-			glUniform1i(ogl_state.ui_shader_secondary_texture_sampler_uniform, 1);
-			glUniform1f(ogl_state.ui_shader_screen_width_uniform, float(width) / ui_scale);
-			glUniform1f(ogl_state.ui_shader_screen_height_uniform, float(height) / ui_scale);
-			glUniform1f(ogl_state.ui_shader_gamma_uniform, 1.0f);
-			glViewport(0, 0, width, height);
-			glDepthRange(-1.0f, 1.0f);
-
-
-			ui::render_text_chunk(
-				font_collection,
-				ogl_state,
-				t,
-				x + t.x,
-				float(y + ycentered),
-				t.font_size,
-				t.font,
-				ink_color,
-				ogl::color_modification::none,
-				1.f
-			);
-		}
-	}
 }
 
 
@@ -439,6 +549,7 @@ void render_window(
 	window_element_data_container_t& win_instance,
 	float x, float y,
 	int width_game_window, int height_game_window,
+	mouse_probe& probe,
 	bool highlightwin,
 	float ui_scale
 ) {
@@ -561,6 +672,7 @@ void render_window(
 		y,
 		win.wrapped.x_size, win.wrapped.y_size,
 		width_game_window, height_game_window,
+		probe,
 		win.wrapped.rectangle_color, ui_scale
 	);
 }
@@ -706,7 +818,8 @@ struct layout_iterator {
 		int32_t width, int32_t height,
 		int32_t width_window, int32_t height_window,
 		color3f outline_color, float scale,
-		int32_t layout_x, int32_t layout_y
+		int32_t layout_x, int32_t layout_y,
+		mouse_probe& probe
 	) {
 		if(!has_more())
 			return;
@@ -723,21 +836,24 @@ struct layout_iterator {
 				if(i.absolute_position) {
 					window.children[i.cached_index].x_pos = int16_t((layout_x + i.abs_x) * scale);
 					window.children[i.cached_index].y_pos = int16_t((layout_y + i.abs_y) * scale);
-
+					window_instance.children[i.cached_index].id = i.cached_index;
 					render_control(
 						ogl_state, fs, font_collection, svg_image_files,
 						open_project, open_templates,
 						window.children[i.cached_index], window_instance.children[i.cached_index],
-						layout_x + i.abs_x, layout_y + i.abs_y, scale, width_window, height_window
+						layout_x + i.abs_x, layout_y + i.abs_y, scale, width_window, height_window,
+						probe
 					);
 				} else {
 					window.children[i.cached_index].x_pos = int16_t(x * scale);
 					window.children[i.cached_index].y_pos = int16_t(y * scale);
+					window_instance.children[i.cached_index].id = i.cached_index;
 					render_control(
 						ogl_state, fs, font_collection, svg_image_files,
 						open_project, open_templates,
 						window.children[i.cached_index], window_instance.children[i.cached_index],
-						x, y, scale, width_window, height_window
+						x, y, scale, width_window, height_window,
+						probe
 					);
 				}
 			}
@@ -801,6 +917,7 @@ struct layout_iterator {
 				height,
 				width_window,
 				height_window,
+				probe,
 				outline_color,
 				scale
 			);
@@ -1419,6 +1536,7 @@ void render_layout(
 	float x, float y,
 	int32_t width, int32_t height,
 	int32_t width_window, int32_t height_window,
+	mouse_probe& probe,
 	color3f outline_color, float scale
 ) {
 	auto base_x_size = layout.size_x != -1 ? int32_t(layout.size_x) : width;
@@ -1511,7 +1629,8 @@ void render_layout(
 					outline_color,
 					scale,
 					x,
-					y
+					y,
+					probe
 				);
 				it.move_position(1);
 
@@ -1571,8 +1690,8 @@ void render_layout(
 					width_window, height_window,
 					outline_color,
 					scale,
-					x,
-					y
+					x,y,
+					probe
 				);
 				it.move_position(1);
 
@@ -1637,8 +1756,7 @@ void render_layout(
 					width_window, height_window,
 					outline_color,
 					scale,
-					x,
-					y
+					x, y, probe
 				);
 
 				if(!place_it.current_is_glue()) {
@@ -1712,8 +1830,7 @@ void render_layout(
 					width_window, height_window,
 					outline_color,
 					scale,
-					x,
-					y
+					x, y, probe
 				);
 
 				if(!place_it.current_is_glue()) {
@@ -1782,8 +1899,7 @@ void render_layout(
 						width_window, height_window,
 						outline_color,
 						scale,
-						x,
-						y
+						x, y, probe
 					);
 
 					place_it.move_position(1);
@@ -1857,8 +1973,7 @@ void render_layout(
 						width_window, height_window,
 						outline_color,
 						scale,
-						x,
-						y
+						x, y, probe
 					);
 
 					place_it.move_position(1);

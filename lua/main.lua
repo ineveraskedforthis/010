@@ -71,6 +71,8 @@ ffi.cdef[[
 	bool is_dependent_of(uint32_t child,uint32_t parent);
 	uint32_t register_text(int32_t text_len, const char* data);
 	uint32_t register_texture(int32_t text_len, const char* data);
+
+	void change_scene(uint8_t scene);
 ]]
 
 if arg and arg[#arg] == "-debug" then

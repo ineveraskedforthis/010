@@ -7,6 +7,7 @@
 #define GLEW_STATIC
 #endif
 #include "GL/glew.h"
+#include "ui_containers.hpp"
 
 void load_global_squares();
 void load_shaders();
@@ -29,6 +30,7 @@ void render_layout(
 	float x, float y,
 	int32_t width, int32_t height,
 	int32_t width_window, int32_t height_window,
+	mouse_probe& probe,
 	color3f outline_color, float scale
 );
 void render_window(
@@ -42,6 +44,7 @@ void render_window(
 	window_element_data_container_t& win_instance,
 	float x, float y,
 	int width_game_window, int height_game_window,
+	mouse_probe& probe,
 	bool highlightwin,
 	float ui_scale
 );
