@@ -2639,7 +2639,7 @@ void handle_ui_click(
 	window_element_data_container_t& window,
 	window_element_wrapper_t& window_prototype
 ){
-	if (!probe.control_id) return;
+	if (probe.control_id == -1) return;
 	auto& c = window.children[probe.control_id];
 	lua_pushcfunction(L, traceback);
 	// [traceback
@@ -3189,8 +3189,12 @@ int main(void) {
 		probe.y = mouse_y;
 		probe.last_frame_control_id = probe.control_id;
 		probe.last_frame_window_id = probe.window_id;
-		probe.control_id = 0;
-		probe.window_id = 0;
+		if (io.WantCaptureMouse) {
+			probe.last_frame_control_id = -1;
+			probe.last_frame_window_id = -1;
+		}
+		probe.control_id = -1;
+		probe.window_id = -1;
 
 
 		// OPENGL RENDERING HERE
