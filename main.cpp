@@ -16,6 +16,8 @@
 #include <iostream>
 #include <vector>
 #include <random>
+#include <chrono>
+#include <thread>
 
 #include "stb_image/stb_image.h"
 
@@ -51,6 +53,7 @@
 
 uint64_t available_window_id = 1;
 
+constexpr GLsizei map_mode_layers = 6;
 
 // https://stackoverflow.com/a/16323388/10281950
 static int traceback(lua_State *L) {
@@ -1294,6 +1297,8 @@ void race_explorer(const float TEXT_BASE_HEIGHT) {
 	ImGui::End();
 }
 
+static bool requested_map_update = false;
+
 template <typename F>
 void map_modes(std::vector<uint8_t>& map_mode_data, int world_size, F&& commit_map_mode) {
 	ImGui::Begin("Map mode");
@@ -1312,7 +1317,6 @@ void map_modes(std::vector<uint8_t>& map_mode_data, int world_size, F&& commit_m
 	};
 
 	static int item_selected_idx = 0;
-	static bool requested_map_update = false;
 	static int loaded_idx = -1;
 	static bool item_highlight = false;
 
@@ -1539,24 +1543,24 @@ void update_camera(
 	float width,
 	float height
 ) {
-	glm::vec3 eye {
+	camera.eye = {
 		cosf(camera.position.y) * sinf(camera.position.x),
 		sinf(camera.position.y),
 		cosf(camera.position.y) * cosf(camera.position.x)
 	};
-	eye *=  camera.position.z;
+	camera.eye *=  camera.position.z;
 
 	float target_zoom = 1.5;
 	float speed_mult = 20.f;
 	if (desired_zoom_level == -2) {
-		auto tile = r3_to_tile(world_size, eye);
+		auto tile = r3_to_tile(world_size, camera.eye);
 		auto elevation = state.tile_get_elevation(tile);
 		auto zoom_adjustment = opengl_elevation(elevation);
 		target_zoom = zoom_adjustment + 0.05f;
 		speed_mult = 5.f;
 	}
 	if (desired_zoom_level == -1) {
-		auto tile = r3_to_tile(world_size, eye);
+		auto tile = r3_to_tile(world_size, camera.eye);
 		auto elevation = state.tile_get_elevation(tile);
 		auto zoom_adjustment = opengl_elevation(elevation);
 		target_zoom = zoom_adjustment + 0.2f;
@@ -1581,14 +1585,14 @@ void update_camera(
 	);
 
 	float near_plane = 0.1f;
-	float far_plane = camera.position.z * 1.2f;
+	float far_plane = camera.position.z * 1.5f;
 	if (desired_zoom_level == -2) {
 		near_plane = 0.01f;
-		far_plane = camera.position.z * 1.2f;
+		far_plane = camera.position.z * 1.5f;
 	}
 	if (desired_zoom_level == -1) {
 		near_plane = 0.01f;
-		far_plane = camera.position.z * 1.2f;
+		far_plane = camera.position.z * 1.5f;
 	}
 	if (desired_zoom_level == 0) {
 		near_plane = 0.1f;
@@ -1777,13 +1781,19 @@ void render_world(
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	glUseProgram(rendering_data.data_shader.program);
+	assert_no_errors();
 
 	glActiveTexture(GL_TEXTURE10);
+	assert_no_errors();
 	glBindTexture(GL_TEXTURE_2D_ARRAY, rendering_data.shadow_map_texture);
+	assert_no_errors();
 	glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+	assert_no_errors();
 
 	glActiveTexture(GL_TEXTURE0);
+	assert_no_errors();
 	glBindTexture(GL_TEXTURE_2D_ARRAY, rendering_data.map_mode_texture);
+	assert_no_errors();
 
 	glm::mat4 model (1.f);
 
@@ -1791,15 +1801,20 @@ void render_world(
 	glUniformMatrix4fv(rendering_data.data_shader.model, 1, GL_FALSE, reinterpret_cast<float *>(&model));
 	glUniformMatrix4fv(rendering_data.data_shader.view, 1, GL_FALSE, reinterpret_cast<float *>(&camera.view));
 	glUniformMatrix4fv(rendering_data.data_shader.projection, 1, GL_FALSE, reinterpret_cast<float *>(&camera.projection));
+	assert_no_errors();
 	glUniform3fv(planet_shader.light_direction, 1, reinterpret_cast<const float *>(&light_direction));
 	glUniform3fv(planet_shader.light_color, 1,  reinterpret_cast<const float *>(&light_color));
 	glUniform3fv(planet_shader.ambient_color, 1,  reinterpret_cast<const float *>(&ambient_color));
+	assert_no_errors();
 	glUniform3fv(planet_shader.albedo_color, 1, reinterpret_cast<const float *>(&rendering_data.albedo_world));
 	glUniform3fv(planet_shader.camera_position, 1, reinterpret_cast<const float *>(&camera.eye));
 	glUniform1i(planet_shader.map_data, 0);
 	glUniform1i(planet_shader.shadow_map, 10);
+	assert_no_errors();
 	glUniform1i(planet_shader.shadow_layers, shadow_layers);
+	assert_no_errors();
 	glUniform1i(planet_shader.is_sky, 0);
+	assert_no_errors();
 	glUniformMatrix4fv(planet_shader.shadow_projection, shadow_layers, GL_FALSE, reinterpret_cast<float *>(shadow_projections.data()));
 	assert_no_errors();
 	glBindVertexArray(world.map.mesh.vao);
@@ -1887,8 +1902,11 @@ enum class game_scene {
 	total = 5
 };
 
+bool images_loaded = false;
 game_scene current_scene = game_scene::main_menu;
 bool settings_opened = false;
+bool request_loading_images = false;
+
 
 extern "C" {
 	DCON_LUADLL_API void change_scene(uint8_t scene) {
@@ -1896,7 +1914,12 @@ extern "C" {
 			window::emit_error_message("Invalid scene", false);
 			return;
 		}
+		images_loaded = false;
 		current_scene = (game_scene)(scene);
+
+		if (current_scene == game_scene::loading_images) {
+			request_loading_images = true;
+		}
 	}
 
 	DCON_LUADLL_API void toggle_settings_window() {
@@ -2377,7 +2400,6 @@ void load_world_from_images(
 	// [traceback
 
 	GLsizei map_mode_resolution = world_size;
-	constexpr GLsizei map_mode_layers = 6;
 
 
 	map_mode_data.resize(4 * map_mode_layers * map_mode_resolution * map_mode_resolution);
@@ -2388,17 +2410,6 @@ void load_world_from_images(
 	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	auto push_map_mode = [&]{
-		glTexImage3D(
-			GL_TEXTURE_2D_ARRAY,
-			0,
-			GL_RGBA,
-			map_mode_resolution, map_mode_resolution, map_mode_layers,
-			0,
-			GL_RGBA, GL_UNSIGNED_BYTE, map_mode_data.data()
-		);
-	};
 
 	generate_cube_sphere(state, world.map, world_size, false);
 	generate_cube_sphere(state, world.sky, world_size, true);
@@ -2452,6 +2463,8 @@ void load_world_from_images(
 
 	lua_pop(L, 1);
 	// [
+
+	images_loaded = true;
 }
 
 void set_text(
@@ -3066,7 +3079,7 @@ int main(void) {
 
 	std::vector<uint8_t> map_mode_data;
 
-	GLuint map_mode_texture;
+	// GLuint map_mode_texture;
 	int world_size = 1;
 
 	float update_timer = 0.f;
@@ -3100,10 +3113,10 @@ int main(void) {
 			.shadow_map = shadow_map_location,
 			.shadow_layers = shadow_layers_location,
 			.is_sky = sky_flag_location,
-			.shadow_projection = shadow_transform_location,
+			.shadow_projection = render_shadow_transform_location,
 		},
 		.shadow_map_texture = shadow_map,
-		.map_mode_texture = map_mode_texture,
+		.map_mode_texture = 0,
 		.albedo_world = albedo_world
 	};
 
@@ -3113,6 +3126,36 @@ int main(void) {
 
 	camera_data camera_opengl_data {};
 
+	/*
+	std::thread image_loading_thread = std::thread([&]{
+		while (true) {
+			if (request_loading_images) {
+				request_loading_images = false;
+				load_world_from_images(
+					L,
+					map_mode_data,
+					map_mode_texture,
+					world_size
+				);
+				images_loaded = true;
+			} else {
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			}
+		}
+	});
+	*/
+	// image_loading_thread.detach();
+
+	auto push_map_mode = [&]{
+		glTexImage3D(
+			GL_TEXTURE_2D_ARRAY,
+			0,
+			GL_RGBA,
+			world_size, world_size, map_mode_layers,
+			0,
+			GL_RGBA, GL_UNSIGNED_BYTE, map_mode_data.data()
+		);
+	};
 
 	mouse_probe probe;
 
@@ -3174,6 +3217,30 @@ int main(void) {
 					example_window, example_window_instance,
 					current_locale, current_settings.ui_scale
 				);
+			}
+
+			ImGui::End();
+		}
+
+		if (current_scene == game_scene::world_exploration) {
+			map_modes(map_mode_data, world_size, push_map_mode);
+		}
+
+		if (current_scene == game_scene::loading_images) {
+			ImGui::Begin("Loading");
+
+			if (!images_loaded) {
+				ImGui::Text("In progress");
+				request_loading_images = false;
+				load_world_from_images(
+					L,
+					map_mode_data,
+					world_opengl_data.map_mode_texture,
+					world_size
+				);
+				images_loaded = true;
+				current_scene = game_scene::world_exploration;
+				requested_map_update = true;
 			}
 
 			ImGui::End();

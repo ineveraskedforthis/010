@@ -10,6 +10,11 @@ tile.Tile = {}
 function tile.Tile:new()
 	local tile_dcon_id = TILE.create()
 
+	if (tile_dcon_id >= 1500000) then
+		print(debug.traceback())
+		error("generating too many tiles???")
+	end
+
 	do
 		local x, y, f = tile.index_to_coords(tile_dcon_id)
 		local ws = WORLD.world_size
