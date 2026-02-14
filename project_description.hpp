@@ -459,6 +459,8 @@ struct window_element_wrapper_t {
 
 
 struct window_element_data_container_t {
+	dcon::aui_window_id dcon_id;
+	uint32_t prototype_index;
 	std::vector<ui_element_data_container_t> children;
 };
 
@@ -474,10 +476,6 @@ struct open_project_t {
 	bool omit_lua = false;
 	std::vector<window_element_wrapper_t> windows;
 	std::vector<table_definition> tables;
-
-
-
-	std::vector<window_element_data_container_t> window_instances;
 };
 
 inline table_definition const* table_from_name(open_project_t const& proj, std::string const& name) {

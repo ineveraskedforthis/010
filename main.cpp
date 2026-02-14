@@ -1029,6 +1029,8 @@ static open_project_t example_ui_project {};
 static template_project::project ui_templates {};
 static asvg::file_bank svg_image_files {};
 
+
+
 void handle_main_menu(
 	ogl::data& ogl_state, text::font_manager& font_collection,
 	window_element_wrapper_t& win,
@@ -2020,46 +2022,47 @@ void load_world_from_images(
 	float scaler_world = 1.f / float(world_size);
 	state.tile_resize_neighbour(4);
 
-	state.for_each_tile([&](dcon::tile_id tile) {
-		auto point = tile_to_sphere(world_size, tile);
-		auto box = sphere_to_box(point);
-		auto fst = tile_to_fst(world_size, tile);
-		auto shift_s = face_to_ds[fst.x] * scaler_world;
-		auto shift_t = face_to_dt[fst.x] * scaler_world;
+	state.execute_parallel_over_tile([&](auto tiles) {
+		ve::apply([&](dcon::tile_id tile){
+			auto point = tile_to_sphere(world_size, tile);
+			auto box = sphere_to_box(point);
+			auto fst = tile_to_fst(world_size, tile);
+			auto shift_s = face_to_ds[fst.x] * scaler_world;
+			auto shift_t = face_to_dt[fst.x] * scaler_world;
 
-		state.tile_set_x(tile, point.x);
-		state.tile_set_y(tile, point.y);
-		state.tile_set_z(tile, point.z);
+			state.tile_set_x(tile, point.x);
+			state.tile_set_y(tile, point.y);
+			state.tile_set_z(tile, point.z);
 
-		// 00 - forward
-		{
-			auto n = r3_to_tile(world_size, box + shift_s);
-			state.tile_set_neighbour(tile, 0, n);
-		}
-		// 01 - left
-		{
-			auto n = r3_to_tile(world_size, box - shift_t);
-			state.tile_set_neighbour(tile, 1, n);
-		}
-		// 10 - right
-		{
-			auto n = r3_to_tile(world_size, box + shift_t);
-			state.tile_set_neighbour(tile, 2, n);
-		}
-		// 11 - backward
-		{
-			auto n = r3_to_tile(world_size, box - shift_s);
-			state.tile_set_neighbour(tile, 3, n);
+			// 00 - forward
+			{
+				auto n = r3_to_tile(world_size, box + shift_s);
+				state.tile_set_neighbour(tile, 0, n);
+			}
+			// 01 - left
+			{
+				auto n = r3_to_tile(world_size, box - shift_t);
+				state.tile_set_neighbour(tile, 1, n);
+			}
+			// 10 - right
+			{
+				auto n = r3_to_tile(world_size, box + shift_t);
+				state.tile_set_neighbour(tile, 2, n);
+			}
+			// 11 - backward
+			{
+				auto n = r3_to_tile(world_size, box - shift_s);
+				state.tile_set_neighbour(tile, 3, n);
 
-			auto n_p = tile_to_sphere(world_size, state.tile_get_neighbour(tile, 3));
-			auto c_p = tile_to_sphere(world_size, tile);
-			auto distance = glm::distance(c_p, n_p);
-			assert(distance < scaler_world * 5.f);
-		}
-
-		assert(fst_to_tile(world_size, tile_to_fst(world_size, tile)) == tile);
-		assert(sphere_to_fst(world_size, point) == fst);
-		assert(glm::distance(point, fst_to_sphere(world_size, sphere_to_fst(world_size, point))) < scaler_world);
+				auto n_p = tile_to_sphere(world_size, state.tile_get_neighbour(tile, 3));
+				auto c_p = tile_to_sphere(world_size, tile);
+				auto distance = glm::distance(c_p, n_p);
+				assert(distance < scaler_world * 5.f);
+			}
+			assert(fst_to_tile(world_size, tile_to_fst(world_size, tile)) == tile);
+			assert(sphere_to_fst(world_size, point) == fst);
+			assert(glm::distance(point, fst_to_sphere(world_size, sphere_to_fst(world_size, point))) < scaler_world);
+		}, tiles);
 	});
 
 	printf("Tile neigbours are generated\n");
@@ -2634,6 +2637,153 @@ void update_ui(
 	// [
 }
 
+extern "C" {
+	DCON_LUADLL_API int32_t load_aui(const char* filename);
+	DCON_LUADLL_API int32_t new_window_instance(int32_t aui_index, const char * win_name);
+}
+
+std::vector<open_project_t> aui_projects;
+std::vector<window_element_data_container_t> window_instances;
+
+void draw_scene(
+	ogl::data& ogl_state, text::font_manager& font_collection,
+	int width, int height,
+	mouse_probe& probe,
+	uint32_t bg_key, float ui_scale
+){
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+	glViewport(0, 0, (int)width, (int)height);
+	float aspect_ratio = (float)width / (float)height;
+	// glClearColor(0.f, 0.f, 0.f, 0.f);
+	// glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+
+	glDisable(GL_CULL_FACE);
+
+
+	auto bg_width = (float)game_text.associated_texture_width[bg_key];
+	auto bg_height = (float)game_text.associated_texture_height[bg_key];
+	auto scale = (float) height / bg_height;
+
+	auto x_bg = (float)width / 2 - bg_width / 2.f * scale;
+
+	// render_textured_rect(
+	// 	{1.f, 1.f, 1.f},
+	// 	x_bg, 0,
+	// 	bg_width * scale, bg_height * scale,
+	// 	game_text.associated_texture[bg_key]
+	// );
+
+	for (auto& item : window_instances) {
+		use_program(width, height);
+		auto project_link = state.aui_window_get_aui_project_link(item.dcon_id);
+		auto project_id = state.aui_project_link_get_aui_project(project_link);
+		auto& project = aui_projects[project_id.index()];
+		auto& prototype = project.windows[item.prototype_index];
+		render_window(
+			ogl_state,
+			common_fs,
+			font_collection,
+			svg_image_files,
+			project,
+			ui_templates,
+			prototype, item,
+			state.aui_window_get_x(item.dcon_id) / ui_scale,
+			state.aui_window_get_y(item.dcon_id) / ui_scale,
+			width, height,
+			probe,
+			false,
+			ui_scale
+		);
+	}
+
+	assert_no_errors();
+}
+
+int32_t load_aui(const char* filename) {
+	auto root = get_root(common_fs);
+	auto assets = simple_fs::open_directory(root, NATIVE("assets"));
+	auto native_name = simple_fs::utf8_to_native(filename) ;
+	auto example = simple_fs::open_file(
+		assets,
+		native_name + L".aui"
+	);
+	auto example_content = view_contents(*example);
+	serialization::in_buffer example_buffer(example_content.data, example_content.file_size);
+	auto ui_project = bytes_to_project(example_buffer);
+	ui_project.project_name = native_name;
+	ui_project.project_directory = NATIVE("./assets/");
+	auto id = state.create_aui_project();
+	aui_projects.push_back(std::move(ui_project));
+	return id.index();
+}
+
+int32_t new_window_instance(int32_t aui_index, const char * win_name) {
+	auto& project = aui_projects[aui_index];
+	auto project_id = dcon::aui_project_id{
+		(dcon::aui_project_id::value_base_t) aui_index
+	};
+	for (uint32_t i = 0; i < project.windows.size(); i++) {
+		auto& prototype = project.windows[i];
+		if (0 == strcmp(prototype.wrapped.name.c_str(), win_name)) {
+			auto window = state.create_aui_window();
+			state.force_create_aui_project_link(project_id, window);
+			window_element_data_container_t instance {
+				.dcon_id = window,
+				.prototype_index = i,
+				.children = {}
+			};
+			window_instances.push_back(std::move(instance));
+			state.aui_window_set_width(window, prototype.wrapped.x_size);
+			state.aui_window_set_height(window, prototype.wrapped.y_size);
+			return window.index();
+		}
+	}
+	window::emit_error_message(
+		"Window does not exist: " + std::string(win_name),
+		true
+	);
+	exit(1);
+}
+
+void load_scene(
+	lua_State* L
+) {
+	lua_pushcfunction(L, traceback);
+	// [traceback
+	lua_getfield(L, LUA_GLOBALSINDEX, "SCENE");
+	if (lua_isnil(L, -1)) window::emit_error_message("Missing SCENE table!", true);
+	// [traceback, SCENE
+	lua_getfield(L, -1, "load");
+	if (lua_isnil(L, -1)) window::emit_error_message("Missing SCENE.load function!", true);
+	// [traceback, SCENE, load
+	auto result = lua_pcall(L, 0, LUA_MULTRET, -3);
+	if (result) exit(1);
+	// [traceback, SCENE
+	lua_pop(L, 2);
+}
+
+void update_positions_scene(
+	lua_State* L, int width, int height
+) {
+	lua_pushcfunction(L, traceback);
+	// [traceback
+	lua_getfield(L, LUA_GLOBALSINDEX, "SCENE");
+	if (lua_isnil(L, -1)) window::emit_error_message("Missing SCENE table!", true);
+	// [traceback, SCENE
+	lua_getfield(L, -1, "set_positions");
+	if (lua_isnil(L, -1)) window::emit_error_message("Missing SCENE.load function!", true);
+	// [traceback, SCENE, func
+	lua_pushnumber(L, width);
+	lua_pushnumber(L, height);
+	// [traceback, SCENE, func, width, height
+	auto result = lua_pcall(L, 2, LUA_MULTRET, -5);
+	if (result) exit(1);
+	// [traceback, SCENE
+	lua_pop(L, 2);
+}
+
 struct mouse_click {
 	double x;
 	double y;
@@ -3053,6 +3203,27 @@ int main(void) {
 		exit(1);
 	}
 
+
+	settings current_settings {};
+	current_settings.ui_scale = 1.f;
+
+	auto update_scene = [&]() {
+		for (auto& item : window_instances) {
+			auto project_link = state.aui_window_get_aui_project_link(item.dcon_id);
+			auto project_id = state.aui_project_link_get_aui_project(project_link);
+			auto& project = aui_projects[project_id.index()];
+			auto& prototype = project.windows[item.prototype_index];
+			update_ui(
+				L, state, font_collection,
+				project, ui_templates,
+				prototype, item,
+				current_locale, current_settings.ui_scale
+			);
+		}
+	};
+
+	// todo: integrate all scenes into scene manager
+	// main menu:
 	std::string path_to_ui_script = "./ui_scripts/";
 	path_to_ui_script += simple_fs::native_to_utf8(example_ui_project.project_name) + ".lua";
 	status = luaL_dofile(L,  path_to_ui_script.c_str());
@@ -3060,12 +3231,8 @@ int main(void) {
 		fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
 		exit(1);
 	}
-
 	auto& example_window = example_ui_project.windows[0];
 	window_element_data_container_t example_window_instance {};
-
-	settings current_settings {};
-	current_settings.ui_scale = 1.f;
 
 	update_ui(
 		L, state, font_collection,
@@ -3073,6 +3240,13 @@ int main(void) {
 		example_window, example_window_instance,
 		current_locale, current_settings.ui_scale
 	);
+
+	status = luaL_dofile(L,  "ui_scripts/scene-explorer.lua");
+	if (status) {
+		fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
+		exit(1);
+	}
+	load_scene(L);
 
 	game::simple_mesh square {};
 	generate_square(square);
@@ -3240,6 +3414,7 @@ int main(void) {
 				);
 				images_loaded = true;
 				current_scene = game_scene::world_exploration;
+				update_scene();
 				requested_map_update = true;
 			}
 
@@ -3284,6 +3459,10 @@ int main(void) {
 				width,
 				height
 			);
+			draw_scene(
+				ogl_state, font_collection,
+				width, height, probe, bg_key, current_settings.ui_scale
+			);
 		}
 
 		// conclusion
@@ -3292,6 +3471,8 @@ int main(void) {
 		glfwGetFramebufferSize(window, &width, &height);
 		width = std::max(width, 10);
 		height = std::max(height, 10);
+
+		update_positions_scene(L, width, height);
 
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 

@@ -136,24 +136,25 @@ void render_label(
 ) {
 	if(c.template_id == -1) window::emit_error_message("Missing template: " + c.name, true);
 	auto bg = open_templates.label_t[c.template_id].primary.bg;
-	if (bg == -1) window::emit_error_message("Missing background: " + c.name, true);
-	auto& renders = open_templates.backgrounds[bg].renders;
-	auto prepared = renders.get_render(
-		fs,
-		svg_image_files,
-		c.x_size / float(open_project.grid_size),
-		c.y_size / float(open_project.grid_size),
-		open_project.grid_size,
-		2.0f
-	);
-	render_textured_rect(
-		color3f{ 0.f, 0.f, 0.f },
-		x * ui_scale,
-		y * ui_scale,
-		std::max(1, int32_t(c.x_size * ui_scale)),
-		std::max(1, int32_t(c.y_size * ui_scale)),
-		prepared
-	);
+	if (bg != -1) {
+		auto& renders = open_templates.backgrounds[bg].renders;
+		auto prepared = renders.get_render(
+			fs,
+			svg_image_files,
+			c.x_size / float(open_project.grid_size),
+			c.y_size / float(open_project.grid_size),
+			open_project.grid_size,
+			2.0f
+		);
+		render_textured_rect(
+			color3f{ 0.f, 0.f, 0.f },
+			x * ui_scale,
+			y * ui_scale,
+			std::max(1, int32_t(c.x_size * ui_scale)),
+			std::max(1, int32_t(c.y_size * ui_scale)),
+			prepared
+		);
+	}
 	ogl::color3f  ink_color = ogl::color3f(open_templates.colors[open_templates.label_t[c.template_id].primary.text_color]);
 	render_text_layout(
 		ogl_state, font_collection,
