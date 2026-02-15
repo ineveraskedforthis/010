@@ -2938,7 +2938,7 @@ int main(void) {
 
 	GLFWwindow* window;
 	float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
-	window = glfwCreateWindow(1280 * main_scale, 960 * main_scale, "009", NULL, NULL);
+	window = glfwCreateWindow(1280 * main_scale, 960 * main_scale, "010", NULL, NULL);
 	if (!window)
 	{
 		glfwTerminate();
