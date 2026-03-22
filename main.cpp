@@ -1909,6 +1909,7 @@ game_scene current_scene = game_scene::main_menu;
 bool settings_opened = false;
 bool request_loading_images = false;
 
+int32_t game_speed = 1;
 
 extern "C" {
 	DCON_LUADLL_API void change_scene(uint8_t scene) {
@@ -1926,6 +1927,18 @@ extern "C" {
 
 	DCON_LUADLL_API void toggle_settings_window() {
 		settings_opened = !settings_opened;
+	}
+
+	DCON_LUADLL_API int32_t get_current_game_speed() {
+		return game_speed;
+	}
+	DCON_LUADLL_API void inc_current_game_speed() {
+		game_speed++;
+		game_speed = std::clamp(game_speed, 1, 5);
+	}
+	DCON_LUADLL_API void dec_current_game_speed() {
+		game_speed--;
+		game_speed = std::clamp(game_speed, 1, 5);
 	}
 }
 
@@ -2850,9 +2863,13 @@ void handle_ui_click(
 
 	bool active = false;
 	auto item_type = item_prototype.ttype;
-	template_project::text_region_template region;
+	// template_project::text_region_template region;
 	if(item_type == template_project::template_type::button) {
-		region = ui_templates.button_t[template_id].primary;
+		// region = ui_templates.button_t[template_id].primary;
+		active = true;
+	}
+	if(item_type == template_project::template_type::iconic_button) {
+		// region = ui_templates.iconic_button_t[template_id].primary;
 		active = true;
 	}
 

@@ -249,7 +249,7 @@ void render_control(
 			vcursor,
 			std::max(1, int32_t(x_sz * ui_scale)),
 			std::max(1, int32_t(y_sz * ui_scale)),
-			s.get_render(fs, svg_image_files, x_sz / float(gsz), y_sz / float(gsz), gsz, 2.0f));
+			s.get_render(fs, svg_image_files, x_sz / float(gsz), y_sz / float(gsz), gsz, ui_scale));
 	};
 	auto render_svg_rect = [&](asvg::simple_svg& s, float hcursor, float vcursor, int32_t x_sz, int32_t y_sz, color3f c) {
 		render_textured_rect(color3f{ 0.f, 0.f, 0.f },
@@ -257,7 +257,7 @@ void render_control(
 			vcursor,
 			std::max(1, int32_t(x_sz * ui_scale)),
 			std::max(1, int32_t(y_sz * ui_scale)),
-			s.get_render(fs, svg_image_files, x_sz, y_sz, 2.0f, c.r, c.g, c.b));
+			s.get_render(fs, svg_image_files, x_sz, y_sz, ui_scale, c.r, c.g, c.b));
 	};
 
 	ogl::color3f ink_color {};
@@ -568,7 +568,7 @@ void render_window(
 				vcursor,
 				std::max(1, int32_t(x_sz * ui_scale)),
 				std::max(1, int32_t(y_sz * ui_scale)),
-				s.get_render(fs, svg_image_files, x_sz / float(gsz), y_sz / float(gsz), gsz, 2.0f));
+				s.get_render(fs, svg_image_files, x_sz / float(gsz), y_sz / float(gsz), gsz, ui_scale));
 
 		};
 		auto render_svg_rect = [&](asvg::simple_svg& s, float hcursor, float vcursor, int32_t x_sz, int32_t y_sz, color3f c) {
@@ -577,7 +577,7 @@ void render_window(
 				vcursor,
 				std::max(1, int32_t(x_sz * ui_scale)),
 				std::max(1, int32_t(y_sz * ui_scale)),
-				s.get_render(fs, svg_image_files, x_sz, y_sz, 2.0f, c.r, c.g, c.b));
+				s.get_render(fs, svg_image_files, x_sz, y_sz, ui_scale, c.r, c.g, c.b));
 		};
 
 		auto& thm = open_templates;
