@@ -2872,6 +2872,10 @@ void handle_ui_click(
 		// region = ui_templates.iconic_button_t[template_id].primary;
 		active = true;
 	}
+	if(item_type == template_project::template_type::iconic_button_ci) {
+		// region = ui_templates.iconic_button_t[template_id].primary;
+		active = true;
+	}
 
 	if (active) {
 		lua_getfield(L, -1, "left_click");

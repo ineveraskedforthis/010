@@ -183,6 +183,9 @@ void render_button(
 	if (probe.y < y * ui_scale) under_mouse = false;
 	if (probe.x > (x + c.x_size) * ui_scale) under_mouse = false;
 	if (probe.y > (y + c.y_size) * ui_scale) under_mouse = false;
+	if (under_mouse) {
+		probe.control_id = data.id;
+	}
 
 	// auto ink_color = ogl::color3f(ui_templates.colors[])
 
@@ -222,10 +225,6 @@ void render_button(
 		width, height,
 		ink_color
 	);
-
-	if (under_mouse) {
-		probe.control_id = data.id;
-	}
 }
 
 void render_control(
@@ -351,6 +350,16 @@ void render_control(
 
 	}
 	if(c.ttype == template_project::template_type::iconic_button) {
+
+		float under_mouse = true;
+		if (probe.x < x * ui_scale) under_mouse = false;
+		if (probe.y < y * ui_scale) under_mouse = false;
+		if (probe.x > (x + c.x_size) * ui_scale) under_mouse = false;
+		if (probe.y > (y + c.y_size) * ui_scale) under_mouse = false;
+		if (under_mouse) {
+			probe.control_id = data.id;
+		}
+
 		if(c.template_id != -1) {
 			auto bg = open_templates.iconic_button_t[c.template_id].primary.bg;
 			if(bg != -1)
