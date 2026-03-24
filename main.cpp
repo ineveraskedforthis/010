@@ -3468,6 +3468,18 @@ int main(void) {
 				example_window, example_window_instance,
 				width, height, probe, bg_key, current_settings.ui_scale
 			);
+			while (clicks_buffer_left != clicks_buffer_right) {
+				if (clicks_buffer[clicks_buffer_left].release) {
+					handle_ui_click(
+						L,
+						probe,
+						example_ui_project,
+						example_window_instance,
+						example_window
+					);
+				}
+				clicks_buffer_left++;
+			}
 		} else if (current_scene == game_scene::world_exploration) {
 			render_world(
 				window,
@@ -3501,18 +3513,7 @@ int main(void) {
 		glfwPollEvents();
 		assert_no_errors();
 
-		while (clicks_buffer_left != clicks_buffer_right) {
-			if (clicks_buffer[clicks_buffer_left].release) {
-				handle_ui_click(
-					L,
-					probe,
-					example_ui_project,
-					example_window_instance,
-					example_window
-				);
-			}
-			clicks_buffer_left++;
-		}
+
 	}
 
 	// Cleanup
