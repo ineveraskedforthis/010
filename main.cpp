@@ -2688,6 +2688,8 @@ void draw_scene(
 	// 	game_text.associated_texture[bg_key]
 	// );
 
+	bool probe_active = false;
+
 	for (auto& item : window_instances) {
 		use_program(width, height);
 		auto project_link = state.aui_window_get_aui_project_link(item.dcon_id);
@@ -2709,10 +2711,15 @@ void draw_scene(
 			false,
 			ui_scale
 		);
+
+		if (probe.control_id != -1) {
+			probe.window_id = item.dcon_id.index();
+		}
 	}
 
 	assert_no_errors();
 }
+
 
 int32_t load_aui(const char* filename) {
 	auto root = get_root(common_fs);
@@ -3496,6 +3503,32 @@ int main(void) {
 				ogl_state, font_collection,
 				width, height, probe, bg_key, current_settings.ui_scale
 			);
+
+			bool clicked = false;
+
+			while (clicks_buffer_left != clicks_buffer_right) {
+				if (clicks_buffer[clicks_buffer_left].release) {
+					for (auto& item : window_instances) {
+						auto project_link = state.aui_window_get_aui_project_link(item.dcon_id);
+						auto project_id = state.aui_project_link_get_aui_project(project_link);
+						auto& project = aui_projects[project_id.index()];
+						if (item.dcon_id.index() == probe.window_id) {
+							handle_ui_click(
+								L,
+								probe,
+								project,
+								item,
+								project.windows[item.prototype_index]
+							);
+							clicked = true;
+						}
+					}
+				}
+				clicks_buffer_left++;
+			}
+
+			if (clicked)
+				update_scene();
 		}
 
 		// conclusion
