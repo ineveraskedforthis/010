@@ -168,6 +168,8 @@ struct state {
 	map_state map;
 	map_state sky;
 
+	int64_t date;
+
 	std::default_random_engine rng {};
 	std::uniform_real_distribution<float> uniform{0.0, 1.0};
 	std::normal_distribution<float> normal {0.f, 1.f};
@@ -837,6 +839,39 @@ static game::text_collection game_text {};
 
 dcon::data_container state {};
 
+extern "C" {
+	DCON_LUADLL_API int64_t get_second();
+	DCON_LUADLL_API int64_t get_minute();
+	DCON_LUADLL_API int64_t get_hour();
+	DCON_LUADLL_API int64_t get_day();
+	DCON_LUADLL_API int64_t get_month();
+	DCON_LUADLL_API int64_t get_year();
+};
+
+constexpr inline int64_t minute_to_seconds = 60;
+constexpr inline int64_t hour_to_minutes = 60;
+constexpr inline int64_t day_to_hours = 24;
+constexpr inline int64_t month_to_days = 30;
+constexpr inline int64_t year_to_months = 12;
+
+int64_t get_second() {
+	return world.date % minute_to_seconds;
+}
+int64_t get_minute() {
+	return world.date % (minute_to_seconds * hour_to_minutes) / minute_to_seconds;
+}
+int64_t get_hour() {
+	return world.date % (minute_to_seconds * hour_to_minutes * day_to_hours) / (minute_to_seconds * hour_to_minutes);
+}
+int64_t get_day() {
+	return world.date % (minute_to_seconds * hour_to_minutes * day_to_hours * month_to_days ) / (minute_to_seconds * hour_to_minutes * day_to_hours);
+}
+int64_t get_month() {
+	return world.date % (minute_to_seconds * hour_to_minutes * day_to_hours * month_to_days * year_to_months) / (minute_to_seconds * hour_to_minutes * day_to_hours * month_to_days);
+}
+int64_t get_year() {
+	return world.date / (minute_to_seconds * hour_to_minutes * day_to_hours * month_to_days * year_to_months);
+}
 
 uint32_t new_text(dcon::data_container& state, game::text_collection& collection, int32_t text_len, const char* data) {
 	auto new_start = collection.text.size();
