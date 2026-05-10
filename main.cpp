@@ -1612,7 +1612,9 @@ void update_camera(
 	camera.speed += glm::vec2(float(current_move_x), float(current_move_y)) * dt;
 
 	auto zoom_direction = target_zoom - camera.position.z;
-	camera.position.xy += camera.speed * dt * speed_mult;
+	auto shift = camera.speed * dt * speed_mult;
+	camera.position.x += shift.x;
+	camera.position.y += shift.y;
 	camera.position.z += zoom_direction * dt * 2.f;
 
 	camera.position.y = std::clamp(
@@ -2762,7 +2764,7 @@ int32_t load_aui(const char* filename) {
 	auto native_name = simple_fs::utf8_to_native(filename) ;
 	auto example = simple_fs::open_file(
 		assets,
-		native_name + L".aui"
+		native_name + NATIVE(".aui")
 	);
 	auto example_content = view_contents(*example);
 	serialization::in_buffer example_buffer(example_content.data, example_content.file_size);
@@ -2968,7 +2970,7 @@ int main(void) {
 	auto example_content = view_contents(*example);
 	serialization::in_buffer example_buffer(example_content.data, example_content.file_size);
 	example_ui_project = bytes_to_project(example_buffer);
-	example_ui_project.project_name = L"example_window";
+	example_ui_project.project_name = NATIVE("example_window");
 	example_ui_project.project_directory = NATIVE("./assets/");
 
 

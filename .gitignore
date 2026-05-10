@@ -27,3 +27,5 @@ DCON
 DCON_LUA
 .vs*
 meson*
+010
+-I.
