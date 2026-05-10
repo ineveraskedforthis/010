@@ -2981,15 +2981,25 @@ int main(void) {
 
 	svg_image_files.root_directory = simple_fs::utf16_to_native(ui_templates.svg_directory);
 
+	auto svg_dir = simple_fs::open_directory(assets, NATIVE("svg"));
+
 	// ui_templates.project_name = rem.substr(0, ext_pos);
 	// ui_templates.project_directory = example_ui_project.project_directory;
 	for(auto& i : ui_templates.icons) {
-		simple_fs::file loaded_file{  example_ui_project.project_directory + svg_image_files.root_directory + simple_fs::utf8_to_native(i.file_name) };
-		i.renders = asvg::simple_svg(loaded_file.content.data, size_t(loaded_file.content.file_size));
+		auto loaded_file = simple_fs::open_file(svg_dir, simple_fs::utf8_to_native(i.file_name));
+		if (loaded_file) {
+			i.renders = asvg::simple_svg(loaded_file->content.data, size_t(loaded_file->content.file_size));
+		} else {
+			printf("NOT FOUND: %s\n", (simple_fs::utf8_to_native(i.file_name)).c_str());
+		}
 	}
 	for(auto& b : ui_templates.backgrounds) {
-		simple_fs::file loaded_file{  example_ui_project.project_directory + svg_image_files.root_directory + simple_fs::utf8_to_native(b.file_name) };
-		b.renders = asvg::svg(loaded_file.content.data, size_t(loaded_file.content.file_size), b.base_x, b.base_y);
+		auto loaded_file = simple_fs::open_file(svg_dir, simple_fs::utf8_to_native(b.file_name));
+		if (loaded_file) {
+			b.renders = asvg::svg(loaded_file->content.data, size_t(loaded_file->content.file_size), b.base_x, b.base_y);
+		} else {
+			printf("NOT FOUND: %s\n", (simple_fs::utf8_to_native(b.file_name)).c_str());
+		}
 	}
 
 	glfwSetErrorCallback(error_callback);
