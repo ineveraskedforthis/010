@@ -2979,9 +2979,10 @@ int main(void) {
 	serialization::in_buffer buffer(content.data, content.file_size);
 	ui_templates = template_project::bytes_to_project(buffer);
 
-	svg_image_files.root_directory = simple_fs::utf16_to_native(ui_templates.svg_directory);
 
 	auto svg_dir = simple_fs::open_directory(assets, NATIVE("svg"));
+	svg_image_files.root_directory = NATIVE("svg");
+
 
 	// ui_templates.project_name = rem.substr(0, ext_pos);
 	// ui_templates.project_directory = example_ui_project.project_directory;
