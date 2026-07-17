@@ -3024,6 +3024,8 @@ int main(void) {
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(1);
 
+    glewExperimental = GL_TRUE;
+
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -3045,15 +3047,13 @@ int main(void) {
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330 core");
 
+	// GLEW validation
 	GLenum err = glewInit();
 	if (GLEW_OK != err) {
-		fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
+        if (err != GLEW_ERROR_NO_GL_VERSION)
+		glew_fail("glewInit: ", err);
 	}
 	fprintf(stdout, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
-
-	// GLEW validation
-	if (auto result = glewInit(); result != GLEW_NO_ERROR)
-		glew_fail("glewInit: ", result);
 	if (!GLEW_VERSION_3_3)
 		throw std::runtime_error("OpenGL 3.3 is not supported");
 

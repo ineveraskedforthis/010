@@ -23,12 +23,12 @@ UI_LOGIC.time_widget.main.date = {}
 UI_LOGIC.time_widget.main.time = {}
 
 function UI_LOGIC.time_widget.main.date.text()
-	local time = string.format("YMD %d,%d,%d", ffi.C.get_year(), ffi.C.get_month(), ffi.C.get_day())
+	local time = string.format("YMD %d,%d,%d", tonumber(ffi.C.get_year()), tonumber(ffi.C.get_month()), tonumber(ffi.C.get_day()))
 	return time
 end
 
 function UI_LOGIC.time_widget.main.time.text()
-	local time = string.format("%02d:%02d:%02d", ffi.C.get_hour(), ffi.C.get_minute(), ffi.C.get_second())
+	local time = string.format("%02d:%02d:%02d", tonumber(ffi.C.get_hour()), tonumber(ffi.C.get_minute()), tonumber(ffi.C.get_second()))
 	return time
 end
 
