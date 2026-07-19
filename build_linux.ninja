@@ -14,22 +14,22 @@ debug_flags_link = -g -gdwarf-3 -fuse-ld=lld
 ###    PATH  VARS    ###
 ########################
 
-dir_blank = BlankProject
-dir_proj  = $dir_blank/src
-dir_deps  = $dir_blank/build/_deps
+dir_blank   = BlankProject
+dir_proj    = $dir_blank/src
+dir_deps    = $dir_blank/build/_deps
 
-dir_svg   = $dir_proj/lunasvg
-dir_hb    = $dir_deps/harfbuzz-src
-dir_ft    = $dir_deps/freetype-src
+dir_svg     = $dir_proj/lunasvg
+dir_hb      = $dir_deps/harfbuzz-src
+dir_ft      = $dir_deps/freetype-src
 
-dir_imgui = imgui
-dir_dcon  = DataContainer
-dir_dlua  = DataContainer-Lua
-dir_glew  = glew-cmake
-dir_glfw  = glfw
-dir_glm   = glm
-dir_luaj  = LuaJIT
-dir_tbb   = oneTBB
+dir_imgui   = imgui
+dir_dcon    = DataContainer
+dir_dlua    = DataContainer-Lua
+dir_glew    = glew-cmake
+dir_glfw    = glfw
+dir_glm     = glm
+dir_luaj    = LuaJIT
+dir_tbb     = oneTBB
 
 ########################
 ###  INCLUDES  VARS  ###
@@ -44,16 +44,22 @@ freetype_includes = -I./$dir_ft/include
 harfbuzz_includes = -I./$dir_hb/src
 lunasvg_includes = -I./$dir_svg -I./stb_image
 
-includes = -I./ -I./$dir_glfw/include -I./$dir_glew/include -I./$dir_imgui -I./$dir_glm $dcon_includes_common -I./$dir_luaj/src -I./$dir_tbb/include
+includes      = -I./ -I./$dir_glfw/include -I./$dir_glew/include -I./$dir_imgui -I./$dir_glm $dcon_includes_common -I./$dir_luaj/src -I./$dir_tbb/include
 
-libs = -L./$dir_glfw/build/src/ -Wl,-R./$dir_glfw/build/src/ -lglfw3 -L./$dir_glew/build/lib/ -Wl,-R./$dir_glew/build/lib/ -lGLEW -L./$dir_luaj/src/ -Wl,-R./$dir_luaj/src/ -lluajit -lGL -licuuc -ltbb -L./$dir_tbb/build/gnu_11.4_cxx11_64_relwithdebinfo/ -Wl,-R./$dir_tbb/build/gnu_11.4_cxx11_64_relwithdebinfo/
+libs          = -L./$dir_glfw/build/src/ -Wl,-R./$dir_glfw/build/src/ -lglfw3 -L./$dir_glew/build/lib/ -Wl,-R./$dir_glew/build/lib/ -lGLEW -L./$dir_luaj/src/ -Wl,-R./$dir_luaj/src/ -lluajit -lGL -licuuc -ltbb -L./$dir_tbb/build/gnu_11.4_cxx11_64_relwithdebinfo/ -Wl,-R./$dir_tbb/build/gnu_11.4_cxx11_64_relwithdebinfo/
 
 #######################
 ###   RULES  LIST   ###
 #######################
 
-rule clone_glfw
-  command = git clone https://github.com/glfw/glfw.git && touch flags/glfw_cloned
+rule clone_blank_project
+  command = git clone https://github.com/ineveraskedforthis/BlankProject.git || (cd $dir_blank && git pull origin && cd ..) && touch flags/blank_project_cloned
+
+rule clone_check
+  command     = test ! -d $dir && git clone $${branch:+-b '$branch'} --single-branch --depth 1 '$url' '$dir' $
+             || git -C $out_dir pull origin ${branch} $
+             && mkdir -p flags && touch $out
+  description = [git] checking $dir : $in
 
 rule configure_glfw
   command = cd $dir_glfw && mkdir build ; cd build && cmake .. -G "Ninja" -D CMAKE_C_COMPILER=$c_compiler -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch ../../flags/glfw_configured
@@ -61,29 +67,14 @@ rule configure_glfw
 rule build_glfw
   command = cd $dir_glfw/build && cmake --build .
 
-rule clone_glew
-  command = git clone https://github.com/Perlmint/glew-cmake.git && touch flags/glew_cloned
-
 rule configure_glew
   command = cd $dir_glew && cd build && cmake ./cmake -G "Ninja" -D CMAKE_C_COMPILER=$c_compiler -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DGLEW_EGL=1 && touch ../../flags/glew_configured
 
 rule build_glew
   command = cd $dir_glew/build && cmake --build .
 
-rule clone_glm
-  command = git clone https://github.com/g-truc/glm.git && touch flags/glm_cloned
-
-rule clone_imgui
-  command = git clone https://github.com/ocornut/imgui.git && touch flags/imgui_cloned
-
-rule clone_luajit
-  command = git clone https://github.com/LuaJIT/LuaJIT.git && touch flags/luajit_cloned
-
 rule build_luajit
   command = cd $dir_luaj && make && touch ../flags/luajit_built
-
-rule clone_onetbb
-  command = git clone https://github.com/uxlfoundation/oneTBB.git && touch flags/onetbb_cloned
 
 rule configure_onetbb
   command = mkdir -p $dir_tbb/build && cd $dir_tbb/build && cmake -G Ninja -D CMAKE_C_COMPILER=$c_compiler -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DTBB_TEST=OFF .. && touch ../../flags/onetbb_configured
@@ -128,7 +119,7 @@ rule compile_dcon
   command = $cpp_compiler $cpp_standard $dcon_includes $dcon_includes_common -ferror-limit=1 $dir_dcon/DataContainerGenerator/DataContainerGenerator.cpp $dir_dcon/DataContainerGenerator/parsing.cpp $dir_dcon/DataContainerGenerator/code_fragments.cpp $dir_dcon/DataContainerGenerator/query_fragments.cpp $dir_dcon/DataContainerGenerator/object_member_fragments.cpp $dir_dcon/DataContainerGenerator/serialize_fragments.cpp -o $out
 
 rule clone_dcon_lua
-  command = (git clone -b allow-creation --single-branch  https://github.com/ineveraskedforthis/DataContainer-Lua.git) || (cd $dir_dlua && git pull origin allow-creation && git checkout allow-creation  && cd ..) && touch flags/dcon_lua_cloned
+  command = (git clone -b allow-creation --single-branch https://github.com/ineveraskedforthis/DataContainer-Lua.git) || (cd $dir_dlua && git pull origin allow-creation && git checkout allow-creation  && cd ..) && touch flags/dcon_lua_cloned
 rule compile_dcon_lua
   command = $cpp_compiler $cpp_standard $dcon_includes $dcon_includes_common -ferror-limit=1 $dir_dlua/src/LuaFFIGenerator.cpp $dir_dlua/src/parser/parsing.cpp -o $out
 
@@ -139,9 +130,6 @@ rule use_dcon
 rule use_dcon_lua
   command = ./DCON_LUA "sote" "state." "$in" "lua-export.cpp" "lua-export.hpp" "./codegen-lua"
   restat = 1
-
-rule clone_blank_project
-  command = git clone https://github.com/ineveraskedforthis/BlankProject.git || (cd $dir_blank && git pull origin && cd ..) && touch flags/blank_project_cloned
 
 rule configure_blank_project
   command = mkdir -p $dir_blank/build && cd $dir_blank/build && cmake .. -G Ninja -D CMAKE_CXX_COMPILER=$cpp_compiler -D CMAKE_CXX_COMPILER=$cpp_compiler -D CMAKE_C_COMPILER=$c_compiler && touch ../../flags/blank_project_configured
@@ -164,17 +152,17 @@ build 010 : link cache/gzip/ftgzip.o cache/sfnt/sfnt.o cache/psnames/psnames.o c
 build cache/dcon_common.o : ccpp $dir_dcon/CommonIncludes/common_types.cpp | flags/dcon_cloned
 build cache/frustum.o : ccpp frustum.cpp | flags/glm_cloned
 
-build cache/main.o : ccpp_game main.cpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
+build cache/main.o : ccpp_game main.cpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp data_ids.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
 
-build cache/render_alice_ui.o : ccpp_game from_alice_editor_main.cpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
+build cache/render_alice_ui.o : ccpp_game from_alice_editor_main.cpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp data_ids.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
 
 build cache/sote_functions.o : ccpp_game sote_functions.cpp | data.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned
 
 build $dir_proj/gamestate/locale.cpp : phony flags/blank_project_cloned
-build cache/locale.o : ccpp_game $dir_proj/gamestate/locale.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp
+build cache/locale.o : ccpp_game $dir_proj/gamestate/locale.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
 
 build $dir_proj/text/text.cpp : phony flags/blank_project_cloned
-build cache/text.o : ccpp_game $dir_proj/text/text.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp
+build cache/text.o : ccpp_game $dir_proj/text/text.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
 
 build $dir_proj/text/parsers.cpp : phony flags/blank_project_cloned
 build cache/parsers.o : ccpp_game $dir_proj/text/parsers.cpp
@@ -183,33 +171,32 @@ build $dir_proj/window/window_nix.cpp : phony flags/blank_project_cloned
 build cache/window_platform.o : ccpp_game $dir_proj/window/window_nix.cpp | flags/glfw_cloned
 
 build $dir_proj/gui/text_render.cpp : phony flags/blank_project_cloned
-build cache/text_render.o : ccpp_game $dir_proj/gui/text_render.cpp | flags/blank_project_configured flags/onetbb_cloned
+build cache/text_render.o : ccpp_game $dir_proj/gui/text_render.cpp | flags/blank_project_configured flags/onetbb_cloned data_ids.hpp
 
 build $dir_proj/gui/alice_ui.cpp : phony flags/blank_project_cloned
-build cache/alice_ui.o : ccpp_game $dir_proj/gui/alice_ui.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp
+build cache/alice_ui.o : ccpp_game $dir_proj/gui/alice_ui.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
 
 build $dir_proj/graphics/texture.cpp : phony flags/blank_project_cloned
 build $dir_proj/graphics/opengl_wrapper.cpp : phony flags/blank_project_cloned
-build cache/gl_wrapper.o : ccpp_game $dir_proj/graphics/opengl_wrapper.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp
+build cache/gl_wrapper.o : ccpp_game $dir_proj/graphics/opengl_wrapper.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
 
 build cache/asvg.o : ccpp_game $dir_proj/graphics/asvg.cpp
 build cache/texture.o : ccpp_game $dir_proj/graphics/texture.cpp
-build cache/read_ui_files.o : ccpp_game project_file_writing.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp
-build cache/fonts.o : ccpp_game $dir_proj/text/fonts.cpp | flags/onetbb_cloned data.hpp
+build cache/read_ui_files.o : ccpp_game project_file_writing.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+build cache/fonts.o : ccpp_game $dir_proj/text/fonts.cpp | flags/onetbb_cloned data.hpp data_ids.hpp
 
 # BUILD PROJECT
 
 build flags/blank_project_cloned : clone_blank_project
 
-build $dir_proj/filesystem/simple_fs_win.cpp : phony flags/blank_project_cloned
 build $dir_proj/filesystem/simple_fs_nix.cpp : phony flags/blank_project_cloned
-build cache/simple_fs.o : ccpp_game $dir_proj/filesystem/simple_fs_nix.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp
+build cache/simple_fs.o : ccpp_game $dir_proj/filesystem/simple_fs_nix.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
 
 build $dir_hb/src/hb.h : phony flags/blank_project_configured
 build $dir_deps/freetype/include/freetype/freetype.h : phony flags/blank_project_configured
 
 build $dir_proj/gamestate/uitemplate_serialization.cpp : phony flags/blank_project_cloned
-build cache/templates_loading.o : ccpp_game $dir_proj/gamestate/uitemplate_serialization.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp
+build cache/templates_loading.o : ccpp_game $dir_proj/gamestate/uitemplate_serialization.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
 
 build flags/blank_project_configured : configure_blank_project | flags/blank_project_cloned
 
@@ -220,6 +207,10 @@ build $dir_proj/graphics/asvg.cpp : phony flags/blank_project_cloned
 # BUILD DCON
 
 build flags/dcon_cloned : clone_dcon
+#clone_check
+#  url         = https://github.com/ineveraskedforthis/DataContainer.git
+#  dir         = $dir_dcon
+#  branch      = to_upstream
 build DCON : compile_dcon flags/dcon_cloned
 build data.hpp | data_ids.hpp : use_dcon ./data.txt | DCON
 
@@ -228,39 +219,55 @@ build $dir_dcon/CommonIncludes/common_types.cpp : phony flags/dcon_cloned
 # BUILD DCON_LUA
 
 build flags/dcon_lua_cloned : clone_dcon_lua
+#clone_check
+#  url         = https://github.com/ineveraskedforthis/DataContainer-Lua.git
+#  dir         = $dir_dlua
+#  branch      = allow-creation
 build DCON_LUA : compile_dcon_lua | flags/dcon_lua_cloned flags/dcon_cloned
 build lua-export.hpp : use_dcon_lua ./data.txt | DCON_LUA
 
 # BUILD ONETBB
 
-build flags/onetbb_cloned : clone_onetbb
+build flags/onetbb_cloned : clone_check
+  url         = https://github.com/uxlfoundation/oneTBB.git
+  dir     = $dir_tbb
 build flags/onetbb_configured : configure_onetbb | flags/onetbb_cloned
 build flags/onetbb_built : build_onetbb | flags/onetbb_configured
 
 # BUILD LUAJIT
 
-build flags/luajit_cloned : clone_luajit
+build flags/luajit_cloned : clone_check
+  url         = https://github.com/LuaJIT/LuaJIT.git
+  dir         = $dir_luaj
 build flags/luajit_built : build_luajit | flags/luajit_cloned
 
 # BUILD GLFW
 
-build flags/glfw_cloned : clone_glfw
+build flags/glfw_cloned : clone_check
+  url         = https://github.com/glfw/glfw.git
+  dir         = $dir_glfw
 build flags/glfw_configured : configure_glfw | flags/glfw_cloned
 build flags/glfw_built | $dir_glfw/build/src/glfw3.lib : build_glfw | flags/glfw_configured
 
 # BUILD GLEW
 
-build flags/glew_cloned : clone_glew
+build flags/glew_cloned : clone_check
+  url         = https://github.com/Perlmint/glew-cmake.git
+  dir         = $dir_glew
 build flags/glew_configured : configure_glew flags/glew_cloned
 build flags/glew_built | $dir_glew/build/lib/libGLEW.so : build_glew | flags/glew_configured
 
 # BUILD GLM
 
-build flags/glm_cloned : clone_glm
+build flags/glm_cloned : clone_check
+  url         = https://github.com/g-truc/glm.git
+  dir         = $dir_glm
 
 # BUILD IMGUI
 
-build flags/imgui_cloned : clone_imgui
+build flags/imgui_cloned : clone_check
+  url         = https://github.com/ocornut/imgui.git
+  dir         = $dir_imgui
 
 build $dir_imgui/imgui.cpp : phony flags/imgui_cloned
 build $dir_imgui/imgui_draw.cpp : phony flags/imgui_cloned
@@ -276,7 +283,7 @@ build cache/imgui_draw.o: ccpp $dir_imgui/imgui_draw.cpp | flags/imgui_cloned
 build cache/imgui_demo.o: ccpp $dir_imgui/imgui_demo.cpp | flags/imgui_cloned
 build cache/imgui_tables.o: ccpp $dir_imgui/imgui_tables.cpp | flags/imgui_cloned
 build cache/imgui_widgets.o: ccpp $dir_imgui/imgui_widgets.cpp | flags/imgui_cloned
-build cache/imgui_backend.o: ccpp $dir_imgui/backends/imgui_impl_glfw.cpp | flags/imgui_cloned
+build cache/imgui_backend.o: ccpp $dir_imgui/backends/imgui_impl_glfw.cpp | flags/imgui_cloned flags/glfw_cloned
 build cache/imgui_backend_gl.o: ccpp $dir_imgui/backends/imgui_impl_opengl3.cpp | flags/imgui_cloned
 build cache/imgui_stdlib.o: ccpp $dir_imgui/misc/cpp/imgui_stdlib.cpp | flags/imgui_cloned
 
