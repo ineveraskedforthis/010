@@ -3,54 +3,76 @@
 ###    FLAG  VARS    ###
 ########################
 
-cpp_compiler = clang++-20
-c_compiler = clang-20
-cpp_standard = -DPREFER_ONE_TBB -std=c++20
-optimisation_flag = -O0
-debug_flags = -g -gdwarf-3 -gcodeview
-debug_flags_link = -g -gdwarf-3 -fuse-ld=lld
+cpp_cmpl      = clang++-20
+c_cmpl        = clang-20
+cpp_std       = -DPREFER_ONE_TBB -std=c++20
+
+optm_flag     = -O0
+dbg_flag      = -g
+link_flag     = -g -fuse-ld=lld
+
+game_flag     = -DWINDOW_SERVER_X11
 
 ########################
 ###    PATH  VARS    ###
 ########################
 
-dir_blank   = BlankProject
-dir_proj    = $dir_blank/src
-dir_deps    = $dir_blank/build/_deps
+dir_blank     = BlankProject
+dir_proj      = $dir_blank/src
+dir_deps      = $dir_blank/build/_deps
 
-dir_svg     = $dir_proj/lunasvg
-dir_hb      = $dir_deps/harfbuzz-src
-dir_ft      = $dir_deps/freetype-src
+dir_svg       = $dir_proj/lunasvg
+dir_hb        = $dir_deps/harfbuzz-src
+dir_ft        = $dir_deps/freetype-src
 
-dir_imgui   = imgui
-dir_dcon    = DataContainer
-dir_dlua    = DataContainer-Lua
-dir_glew    = glew-cmake
-dir_glfw    = glfw
-dir_glm     = glm
-dir_luaj    = LuaJIT
-dir_tbb     = oneTBB
+dir_imgui     = imgui
+dir_dcon      = DataContainer
+dir_dlua      = DataContainer-Lua
+dir_glew      = glew-cmake
+dir_glfw      = glfw
+dir_glm       = glm
+dir_luaj      = LuaJIT
+dir_tbb       = oneTBB
 
 ########################
 ###  INCLUDES  VARS  ###
 ########################
 
-dcon_includes_common = -I./$dir_dcon/CommonIncludes
-dcon_includes = -I./$dir_dcon/DataContainerGenerator
+dcom_incl     = -I./$dir_dcon/CommonIncludes
+dcon_incl     = -I./$dir_dcon/DataContainerGenerator
 
-blank_includes = -I./$dir_proj -I./$dir_proj/gamestate -I./$dir_proj/window -I./$dir_proj/common_types -I./$dir_proj/graphics -I./$dir_hb/src  -I./$dir_proj/filesystem -I./$dir_proj/text -I./$dir_ft/include  -I./$dir_proj/gui -I./$dir_proj/sound -I./$dir_svg -I./stb_image
+blank_incl    = -I./$dir_proj -I./$dir_proj/gamestate -I./$dir_proj/window -I./$dir_proj/common_types $
+                -I./$dir_proj/graphics -I./$dir_proj/filesystem -I./$dir_proj/gui -I./$dir_proj/sound $
+                -I./$dir_proj/text -I./$dir_hb/src -I./$dir_ft/include  -I./$dir_svg -I./stb_image
 
-freetype_includes = -I./$dir_ft/include
-harfbuzz_includes = -I./$dir_hb/src
-lunasvg_includes = -I./$dir_svg -I./stb_image
+ft_incl       = -I./$dir_ft/include
+hb_incl       = -I./$dir_hb/src
+luna_incl     = -I./$dir_svg -I./stb_image
 
-includes      = -I./ -I./$dir_glfw/include -I./$dir_glew/include -I./$dir_imgui -I./$dir_glm $dcon_includes_common -I./$dir_luaj/src -I./$dir_tbb/include
+com_incl      = -I./ -I./$dir_glfw/include -I./$dir_glew/include -I./$dir_imgui -I./$dir_glm -I./$dir_luaj/src -I./$dir_tbb/include $dcom_incl
 
-libs          = -L./$dir_glfw/build/src/ -Wl,-R./$dir_glfw/build/src/ -lglfw3 -L./$dir_glew/build/lib/ -Wl,-R./$dir_glew/build/lib/ -lGLEW -L./$dir_luaj/src/ -Wl,-R./$dir_luaj/src/ -lluajit -lGL -licuuc -ltbb -L./$dir_tbb/build/gnu_11.4_cxx11_64_relwithdebinfo/ -Wl,-R./$dir_tbb/build/gnu_11.4_cxx11_64_relwithdebinfo/
+libs          = -L./$dir_glfw/build/src/ -Wl,-R./$dir_glfw/build/src/ -lglfw3 $
+                -L./$dir_glew/build/lib/ -Wl,-R./$dir_glew/build/lib/ -lGLEW $
+                -L./$dir_tbb/build/gnu_11.4_cxx11_64_relwithdebinfo/ -Wl,-R./$dir_tbb/build/gnu_11.4_cxx11_64_relwithdebinfo/ -ltbb $
+                -L./$dir_luaj/src/ -Wl,-R./$dir_luaj/src/ -lluajit -lGL -licuuc
 
 #######################
 ###   RULES  LIST   ###
 #######################
+
+rule use_dcon
+  command     = ./DCON $in
+  restat      = 1
+
+rule use_dcon_lua
+  command     = ./DCON_LUA "sote" "state." "$in" "lua-export.cpp" "lua-export.hpp" "./codegen-lua"
+  restat      = 1
+
+rule clone_dcon
+  command = (git clone -b to_upstream --single-branch https://github.com/ineveraskedforthis/DataContainer.git) || (cd $dir_dcon && git pull origin master && cd ..) && touch flags/dcon_cloned
+
+rule clone_dcon_lua
+  command = (git clone -b allow-creation --single-branch https://github.com/ineveraskedforthis/DataContainer-Lua.git) || (cd $dir_dlua && git pull origin allow-creation && git checkout allow-creation  && cd ..) && touch flags/dcon_lua_cloned
 
 rule clone_blank_project
   command = git clone https://github.com/ineveraskedforthis/BlankProject.git || (cd $dir_blank && git pull origin && cd ..) && touch flags/blank_project_cloned
@@ -60,15 +82,26 @@ rule clone_check
              || git -C $out_dir pull origin ${branch} $
              && mkdir -p flags && touch $out
   description = [git] checking $dir : $in
+  restat      = 1
+
+# CONFIGURE RULES
+
+rule configure_blank_project
+  command = mkdir -p $dir_blank/build && cd $dir_blank/build && cmake .. -G Ninja -D CMAKE_CXX_COMPILER=$cpp_cmpl -D CMAKE_CXX_COMPILER=$cpp_cmpl -D CMAKE_C_COMPILER=$c_cmpl && touch ../../flags/blank_project_configured
 
 rule configure_glfw
-  command = cd $dir_glfw && mkdir build ; cd build && cmake .. -G "Ninja" -D CMAKE_C_COMPILER=$c_compiler -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch ../../flags/glfw_configured
+  command = cd $dir_glfw && mkdir build ; cd build && cmake .. -G "Ninja" -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch ../../flags/glfw_configured
+
+rule configure_glew
+  command = cd $dir_glew && cd build && cmake ./cmake -G "Ninja" -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DGLEW_EGL=1 && touch ../../flags/glew_configured
+
+rule configure_onetbb
+  command = mkdir -p $dir_tbb/build && cd $dir_tbb/build && cmake -G Ninja -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DTBB_TEST=OFF .. && touch ../../flags/onetbb_configured
+
+# BUILD RULES
 
 rule build_glfw
   command = cd $dir_glfw/build && cmake --build .
-
-rule configure_glew
-  command = cd $dir_glew && cd build && cmake ./cmake -G "Ninja" -D CMAKE_C_COMPILER=$c_compiler -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DGLEW_EGL=1 && touch ../../flags/glew_configured
 
 rule build_glew
   command = cd $dir_glew/build && cmake --build .
@@ -76,66 +109,48 @@ rule build_glew
 rule build_luajit
   command = cd $dir_luaj && make && touch ../flags/luajit_built
 
-rule configure_onetbb
-  command = mkdir -p $dir_tbb/build && cd $dir_tbb/build && cmake -G Ninja -D CMAKE_C_COMPILER=$c_compiler -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DTBB_TEST=OFF .. && touch ../../flags/onetbb_configured
-
 rule build_onetbb
   command = cd $dir_tbb/build && cmake --build . && touch ../../flags/onetbb_configured
 
+rule compile_dcon
+  command = $cpp_cmpl $cpp_std $dcon_incl $dcom_incl -ferror-limit=1 $dir_dcon/DataContainerGenerator/DataContainerGenerator.cpp $dir_dcon/DataContainerGenerator/parsing.cpp $dir_dcon/DataContainerGenerator/code_fragments.cpp $dir_dcon/DataContainerGenerator/query_fragments.cpp $dir_dcon/DataContainerGenerator/object_member_fragments.cpp $dir_dcon/DataContainerGenerator/serialize_fragments.cpp -o $out
+
+rule compile_dcon_lua
+  command = $cpp_cmpl $cpp_std $dcon_incl $dcom_incl -ferror-limit=1 $dir_dlua/src/LuaFFIGenerator.cpp $dir_dlua/src/parser/parsing.cpp -o $out
+
+# COMPILE RULES
+
+rule link
+  command = $cpp_cmpl $cpp_std $link_flag $in -Wl,-E $libs -mavx2 -o $out
+  description = link $out
+
+rule ccpp
+  command     = $cpp_cmpl $cpp_std $cmpl_flag -mavx2 -MD -MF $out.d $cmpl_incl -c $cmpl_src -o $out
+  description = [$cpp_cmpl] $cmpl_src -> $out
+  depfile     = $out.d
+
 rule ccpp_game
-  command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -DWINDOW_SERVER_X11 -mavx2 -MD -MF $out.d $includes $blank_includes -c $in -o $out
+  command = $cpp_cmpl $cpp_std $optm_flag $dbg_flag -DWINDOW_SERVER_X11 -mavx2 -MD -MF $out.d $com_incl $blank_incl -c $in -o $out
+  description = compile $out
+  depfile = $out.d
+
+rule ccpp_harfbuzz
+  command = $cpp_cmpl $cpp_std $optm_flag $dbg_flag -D_CRT_SECURE_NO_WARNINGS -DHAVE_FREETYPE=TRUE -Wno-nontrivial-memcall -Wno-nontrivial-memaccess -Wno-unknown-warning-option -W -MD -MF $out.d $hb_incl $ft_incl -c $in -o $out
   description = compile $out
   depfile = $out.d
 
 rule ccpp_lunasvg
-  command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -mavx2 -MD -MF $out.d $includes $lunasvg_includes -c $in -o $out
+  command = $cpp_cmpl $cpp_std $optm_flag $dbg_flag -mavx2 -MD -MF $out.d $com_incl $luna_incl -c $in -o $out
   description = compile $out
   depfile = $out.d
 
 rule cc_lunasvg
-  command = $c_compiler $optimisation_flag $debug_flags -mavx2 -MD -MF $out.d $includes $lunasvg_includes -c $in -o $out
+  command = $c_cmpl $optm_flag $dbg_flag -mavx2 -MD -MF $out.d $com_incl $luna_incl -c $in -o $out
   description = compile $out
   depfile = $out.d
-
-rule ccpp
-  command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -mavx2 -MD -MF $out.d $includes -c $in -o $out
-  description = compile $out
-  depfile = $out.d
-
 
 rule cc_freetype
-  command = $c_compiler $optimisation_flag $debug_flags -D_CRT_SECURE_NO_WARNINGS -DFT2_BUILD_LIBRARY -DFT_DISABLE_ZLIB=FALSE -DFT_DISABLE_BZIP2=TRUE -DFT_DISABLE_PNG=TRUE -DFT_DISABLE_BROTLI=TRUE -DFT_CONFIG_OPTION_USE_HARFBUZZ=TRUE -DFT_DISABLE_HARFBUZZ=FALSE -DHARFBUZZ_FOUND=TRUE -DFT_CONFIG_MODULES_H=\<ftmodule.h\> -I. -MD -MF $out.d $freetype_includes -c $in -o $out
-  description = compile $out
-  depfile = $out.d
-
-rule link
-  command = $cpp_compiler $cpp_standard $debug_flags_link $in -Wl,-E $libs -mavx2 -o $out
-  description = link $out
-
-rule clone_dcon
-  command = (git clone -b to_upstream --single-branch https://github.com/ineveraskedforthis/DataContainer.git) || (cd $dir_dcon && git pull origin master && cd ..) && touch flags/dcon_cloned
-
-rule compile_dcon
-  command = $cpp_compiler $cpp_standard $dcon_includes $dcon_includes_common -ferror-limit=1 $dir_dcon/DataContainerGenerator/DataContainerGenerator.cpp $dir_dcon/DataContainerGenerator/parsing.cpp $dir_dcon/DataContainerGenerator/code_fragments.cpp $dir_dcon/DataContainerGenerator/query_fragments.cpp $dir_dcon/DataContainerGenerator/object_member_fragments.cpp $dir_dcon/DataContainerGenerator/serialize_fragments.cpp -o $out
-
-rule clone_dcon_lua
-  command = (git clone -b allow-creation --single-branch https://github.com/ineveraskedforthis/DataContainer-Lua.git) || (cd $dir_dlua && git pull origin allow-creation && git checkout allow-creation  && cd ..) && touch flags/dcon_lua_cloned
-rule compile_dcon_lua
-  command = $cpp_compiler $cpp_standard $dcon_includes $dcon_includes_common -ferror-limit=1 $dir_dlua/src/LuaFFIGenerator.cpp $dir_dlua/src/parser/parsing.cpp -o $out
-
-rule use_dcon
-  command = ./DCON $in
-  restat = 1
-
-rule use_dcon_lua
-  command = ./DCON_LUA "sote" "state." "$in" "lua-export.cpp" "lua-export.hpp" "./codegen-lua"
-  restat = 1
-
-rule configure_blank_project
-  command = mkdir -p $dir_blank/build && cd $dir_blank/build && cmake .. -G Ninja -D CMAKE_CXX_COMPILER=$cpp_compiler -D CMAKE_CXX_COMPILER=$cpp_compiler -D CMAKE_C_COMPILER=$c_compiler && touch ../../flags/blank_project_configured
-
-rule ccpp_harfbuzz
-  command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -D_CRT_SECURE_NO_WARNINGS -DHAVE_FREETYPE=TRUE -Wno-nontrivial-memcall -Wno-nontrivial-memaccess -Wno-unknown-warning-option -W -MD -MF $out.d $harfbuzz_includes $freetype_includes -c $in -o $out
+  command = $c_cmpl $optm_flag $dbg_flag -D_CRT_SECURE_NO_WARNINGS -DFT2_BUILD_LIBRARY -DFT_DISABLE_ZLIB=FALSE -DFT_DISABLE_BZIP2=TRUE -DFT_DISABLE_PNG=TRUE -DFT_DISABLE_BROTLI=TRUE -DFT_CONFIG_OPTION_USE_HARFBUZZ=TRUE -DFT_DISABLE_HARFBUZZ=FALSE -DHARFBUZZ_FOUND=TRUE -DFT_CONFIG_MODULES_H=\<ftmodule.h\> -I. -MD -MF $out.d $ft_incl -c $in -o $out
   description = compile $out
   depfile = $out.d
 
@@ -145,18 +160,60 @@ rule ccpp_harfbuzz
 
 # LINK ENGINE
 
-build 010 : link cache/gzip/ftgzip.o cache/sfnt/sfnt.o cache/psnames/psnames.o cache/text_render.o cache/text.o cache/alice_ui.o cache/parsers.o cache/locale.o cache/window_platform.o cache/gl_wrapper.o cache/ft-hb.o cache/hb-ft.o cache/ft-hb-ft.o cache/ftmm.o cache/smooth/smooth.o cache/raster/raster.o cache/sdf/sdf.o cache/src/truetype/truetype.o cache/ftsvg.o cache/ftinit.o cache/hb-aat-layout.o cache/hb-aat-map.o cache/hb-blob.o cache/hb-buffer-serialize.o cache/hb-buffer-verify.o cache/hb-buffer.o cache/hb-common.o cache/hb-draw.o cache/hb-paint.o cache/hb-paint-extents.o cache/hb-face.o cache/hb-face-builder.o cache/hb-fallback-shape.o cache/hb-font.o cache/hb-map.o cache/hb-number.o cache/hb-ot-cff1-table.o cache/cff/cff.o cache/hb-ot-cff2-table.o cache/hb-ot-color.o cache/hb-ot-face.o cache/hb-ot-font.o cache/hb-outline.o cache/hb-ot-layout.o cache/hb-ot-map.o cache/hb-ot-math.o cache/hb-ot-meta.o cache/hb-ot-metrics.o cache/hb-ot-name.o cache/hb-ot-shaper-arabic.o cache/hb-ot-shaper-default.o cache/hb-ot-shaper-hangul.o cache/hb-ot-shaper-hebrew.o cache/hb-ot-shaper-indic-table.o cache/hb-ot-shaper-indic.o cache/hb-ot-shaper-khmer.o cache/hb-ot-shaper-myanmar.o cache/hb-ot-shaper-syllabic.o cache/hb-ot-shaper-thai.o cache/hb-ot-shaper-use.o cache/hb-ot-shaper-vowel-constraints.o cache/hb-ot-shape-fallback.o cache/hb-ot-shape-normalize.o cache/hb-ot-shape.o cache/hb-ot-tag.o cache/hb-ot-var.o cache/hb-set.o cache/hb-shape-plan.o cache/hb-shape.o cache/hb-shaper.o cache/hb-static.o cache/hb-style.o cache/hb-ucd.o cache/hb-unicode.o cache/ftbitmap.o cache/ftsystem.o cache/ftdebug.o cache/ftbase.o cache/ftbbox.o cache/ftglyph.o cache/read_ui_files.o cache/texture.o cache/lunasvg/plutovg-surface.o cache/render_alice_ui.o cache/lunasvg/svgtextelement.o cache/lunasvg/lunasvg.o cache/lunasvg/graphics.o cache/lunasvg/svggeometryelement.o cache/lunasvg/svgelement.o cache/lunasvg/svgrenderstate.o cache/lunasvg/svgproperty.o cache/main.o cache/lunasvg/svgparser.o cache/lunasvg/svgpaintelement.o cache/lunasvg/svglayoutstate.o cache/lunasvg/plutovg-canvas.o cache/lunasvg/plutovg-blend.o cache/lunasvg/plutovg-rasterize.o cache/lunasvg/plutovg-path.o cache/lunasvg/plutovg-paint.o cache/lunasvg/plutovg-matrix.o cache/lunasvg/plutovg-ft-stroker.o cache/lunasvg/plutovg-ft-raster.o cache/lunasvg/plutovg-ft-math.o cache/simple_fs.o cache/templates_loading.o cache/asvg.o cache/frustum.o cache/dcon_common.o cache/lunasvg/plutovg-font.o cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o cache/imgui_draw.o cache/imgui.o cache/sote_functions.o cache/fonts.o | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so
+# block 1. game objects 
+# block 2. freetype objects
+# block 3. harfbuzz objects
+# block 4. imgui objects
+build 010 : link cache/main.o cache/locale.o cache/window_platform.o  cache/gl_wrapper.o cache/dcon_common.o $
+              cache/alice_ui.o cache/read_ui_files.o cache/templates_loading.o cache/simple_fs.o cache/parsers.o $
+              cache/render_alice_ui.o cache/asvg.o cache/texture.o cache/text_render.o cache/text.o cache/frustum.o $
+              cache/gzip/ftgzip.o cache/sfnt/sfnt.o cache/psnames/psnames.o cache/ftbitmap.o cache/ftsystem.o $
+              cache/ftdebug.o cache/ftbase.o cache/ftbbox.o cache/ftglyph.o cache/ft-hb.o cache/hb-ft.o $
+              cache/ft-hb-ft.o cache/ftmm.o cache/smooth/smooth.o cache/raster/raster.o cache/sdf/sdf.o $
+              cache/src/truetype/truetype.o cache/ftsvg.o cache/ftinit.o $
+              cache/hb-aat-layout.o cache/hb-aat-map.o cache/hb-blob.o cache/hb-buffer-serialize.o $
+              cache/hb-buffer-verify.o cache/hb-buffer.o cache/hb-common.o cache/hb-draw.o cache/hb-paint.o $
+              cache/hb-paint-extents.o cache/hb-face.o cache/hb-face-builder.o cache/hb-fallback-shape.o $
+              cache/hb-font.o cache/hb-map.o cache/hb-number.o cache/hb-ot-cff1-table.o cache/cff/cff.o $
+              cache/hb-ot-cff2-table.o cache/hb-ot-color.o cache/hb-ot-face.o cache/hb-ot-font.o $
+              cache/hb-outline.o cache/hb-ot-layout.o cache/hb-ot-map.o cache/hb-ot-math.o cache/hb-ot-meta.o $
+              cache/hb-ot-metrics.o cache/hb-ot-name.o cache/hb-ot-shaper-arabic.o cache/hb-ot-shaper-default.o $
+              cache/hb-ot-shaper-hangul.o cache/hb-ot-shaper-hebrew.o cache/hb-ot-shaper-indic-table.o $
+              cache/hb-ot-shaper-indic.o cache/hb-ot-shaper-khmer.o cache/hb-ot-shaper-myanmar.o cache/hb-ucd.o $
+              cache/hb-ot-shaper-syllabic.o cache/hb-ot-shaper-thai.o cache/hb-ot-shaper-use.o cache/hb-unicode.o $
+              cache/hb-ot-shaper-vowel-constraints.o cache/hb-ot-shape-fallback.o cache/hb-ot-shape-normalize.o $
+              cache/hb-ot-shape.o cache/hb-ot-tag.o cache/hb-ot-var.o cache/hb-set.o cache/hb-shape-plan.o $
+              cache/hb-shape.o cache/hb-shaper.o cache/hb-static.o cache/hb-style.o $
+              cache/lunasvg/plutovg-surface.o cache/lunasvg/svgtextelement.o cache/lunasvg/lunasvg.o cache/lunasvg/graphics.o $
+              cache/lunasvg/svggeometryelement.o cache/lunasvg/svgelement.o cache/lunasvg/svgrenderstate.o cache/lunasvg/svgproperty.o $
+              cache/lunasvg/svgparser.o cache/lunasvg/svgpaintelement.o cache/lunasvg/svglayoutstate.o cache/lunasvg/plutovg-canvas.o $
+              cache/lunasvg/plutovg-blend.o cache/lunasvg/plutovg-rasterize.o cache/lunasvg/plutovg-path.o cache/lunasvg/plutovg-paint.o $
+              cache/lunasvg/plutovg-matrix.o cache/lunasvg/plutovg-ft-stroker.o cache/lunasvg/plutovg-ft-raster.o cache/lunasvg/plutovg-ft-math.o $
+              cache/lunasvg/plutovg-font.o $
+              cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o $
+              cache/imgui_draw.o cache/imgui.o cache/sote_functions.o cache/fonts.o $
+            | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so
 
 # BUILD ENGINE
 
-build cache/dcon_common.o : ccpp $dir_dcon/CommonIncludes/common_types.cpp | flags/dcon_cloned
-build cache/frustum.o : ccpp frustum.cpp | flags/glm_cloned
+
+build cache/dcon_common.o : ccpp | flags/dcon_cloned
+  cmpl_src    = $dir_dcon/CommonIncludes/common_types.cpp
+  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_incl   = $com_incl
+
+build cache/frustum.o : ccpp | flags/glm_cloned
+  cmpl_src    = frustum.cpp
+  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_incl   = $com_incl
 
 build cache/main.o : ccpp_game main.cpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp data_ids.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
 
 build cache/render_alice_ui.o : ccpp_game from_alice_editor_main.cpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp data_ids.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
 
 build cache/sote_functions.o : ccpp_game sote_functions.cpp | data.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned
+
+build cache/read_ui_files.o : ccpp_game project_file_writing.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
 
 build $dir_proj/gamestate/locale.cpp : phony flags/blank_project_cloned
 build cache/locale.o : ccpp_game $dir_proj/gamestate/locale.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
@@ -176,18 +233,17 @@ build cache/text_render.o : ccpp_game $dir_proj/gui/text_render.cpp | flags/blan
 build $dir_proj/gui/alice_ui.cpp : phony flags/blank_project_cloned
 build cache/alice_ui.o : ccpp_game $dir_proj/gui/alice_ui.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
 
-build $dir_proj/graphics/texture.cpp : phony flags/blank_project_cloned
 build $dir_proj/graphics/opengl_wrapper.cpp : phony flags/blank_project_cloned
 build cache/gl_wrapper.o : ccpp_game $dir_proj/graphics/opengl_wrapper.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
 
+build $dir_proj/graphics/asvg.cpp : phony flags/blank_project_cloned
 build cache/asvg.o : ccpp_game $dir_proj/graphics/asvg.cpp
+
+build $dir_proj/graphics/texture.cpp : phony flags/blank_project_cloned
 build cache/texture.o : ccpp_game $dir_proj/graphics/texture.cpp
-build cache/read_ui_files.o : ccpp_game project_file_writing.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+
+build $dir_proj/text/fonts.cpp : phony flags/blank_project_cloned | $dir_hb/src/hb.h $dir_deps/freetype/include/freetype/freetype.h
 build cache/fonts.o : ccpp_game $dir_proj/text/fonts.cpp | flags/onetbb_cloned data.hpp data_ids.hpp
-
-# BUILD PROJECT
-
-build flags/blank_project_cloned : clone_blank_project
 
 build $dir_proj/filesystem/simple_fs_nix.cpp : phony flags/blank_project_cloned
 build cache/simple_fs.o : ccpp_game $dir_proj/filesystem/simple_fs_nix.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
@@ -198,11 +254,11 @@ build $dir_deps/freetype/include/freetype/freetype.h : phony flags/blank_project
 build $dir_proj/gamestate/uitemplate_serialization.cpp : phony flags/blank_project_cloned
 build cache/templates_loading.o : ccpp_game $dir_proj/gamestate/uitemplate_serialization.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
 
+
+# BUILD PROJECT
+
+build flags/blank_project_cloned : clone_blank_project
 build flags/blank_project_configured : configure_blank_project | flags/blank_project_cloned
-
-build $dir_proj/text/fonts.cpp : phony flags/blank_project_cloned | $dir_hb/src/hb.h $dir_deps/freetype/include/freetype/freetype.h
-
-build $dir_proj/graphics/asvg.cpp : phony flags/blank_project_cloned
 
 # BUILD DCON
 
@@ -269,23 +325,38 @@ build flags/imgui_cloned : clone_check
   url         = https://github.com/ocornut/imgui.git
   dir         = $dir_imgui
 
-build $dir_imgui/imgui.cpp : phony flags/imgui_cloned
-build $dir_imgui/imgui_draw.cpp : phony flags/imgui_cloned
-build $dir_imgui/imgui_demo.cpp : phony flags/imgui_cloned
-build $dir_imgui/imgui_tables.cpp : phony flags/imgui_cloned
-build $dir_imgui/imgui_widgets.cpp : phony flags/imgui_cloned
-build $dir_imgui/backends/imgui_impl_glfw.cpp : phony flags/imgui_cloned
-build $dir_imgui/backends/imgui_impl_opengl3.cpp : phony flags/imgui_cloned
-build $dir_imgui/misc/cpp/imgui_stdlib.cpp : phony flags/imgui_cloned
-
-build cache/imgui.o: ccpp $dir_imgui/imgui.cpp | flags/imgui_cloned
-build cache/imgui_draw.o: ccpp $dir_imgui/imgui_draw.cpp | flags/imgui_cloned
-build cache/imgui_demo.o: ccpp $dir_imgui/imgui_demo.cpp | flags/imgui_cloned
-build cache/imgui_tables.o: ccpp $dir_imgui/imgui_tables.cpp | flags/imgui_cloned
-build cache/imgui_widgets.o: ccpp $dir_imgui/imgui_widgets.cpp | flags/imgui_cloned
-build cache/imgui_backend.o: ccpp $dir_imgui/backends/imgui_impl_glfw.cpp | flags/imgui_cloned flags/glfw_cloned
-build cache/imgui_backend_gl.o: ccpp $dir_imgui/backends/imgui_impl_opengl3.cpp | flags/imgui_cloned
-build cache/imgui_stdlib.o: ccpp $dir_imgui/misc/cpp/imgui_stdlib.cpp | flags/imgui_cloned
+build cache/imgui.o : ccpp || flags/imgui_cloned
+  cmpl_src    = $dir_imgui/imgui.cpp
+  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_incl   = $com_incl
+build cache/imgui_draw.o : ccpp || flags/imgui_cloned
+  cmpl_src    = $dir_imgui/imgui_draw.cpp
+  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_incl   = $com_incl
+build cache/imgui_demo.o : ccpp || flags/imgui_cloned
+  cmpl_src    = $dir_imgui/imgui_demo.cpp
+  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_incl   = $com_incl
+build cache/imgui_tables.o : ccpp || flags/imgui_cloned
+  cmpl_src    = $dir_imgui/imgui_tables.cpp
+  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_incl   = $com_incl
+build cache/imgui_widgets.o : ccpp || flags/imgui_cloned
+  cmpl_src    = $dir_imgui/imgui_widgets.cpp
+  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_incl   = $com_incl
+build cache/imgui_backend.o : ccpp || flags/imgui_cloned
+  cmpl_src    = $dir_imgui/backends/imgui_impl_glfw.cpp
+  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_incl   = $com_incl
+build cache/imgui_backend_gl.o : ccpp || flags/imgui_cloned
+  cmpl_src    = $dir_imgui/backends/imgui_impl_opengl3.cpp
+  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_incl   = $com_incl
+build cache/imgui_stdlib.o: ccpp || flags/imgui_cloned
+  cmpl_src    = $dir_imgui/misc/cpp/imgui_stdlib.cpp
+  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_incl   = $com_incl
 
 # BUILD LUNASVG
 
