@@ -27,8 +27,8 @@
 #include <glm/ext.hpp> // perspective, translate, rotate
 #include "glm/ext/matrix_transform.hpp"
 
-#include "imgui/backends/imgui_impl_glfw.h"
-#include "imgui/backends/imgui_impl_opengl3.h"
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_opengl3.h"
 #include "data.hpp"
 #include "frustum.hpp"
 #include "unordered_dense.h"

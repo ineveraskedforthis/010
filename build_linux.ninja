@@ -8,8 +8,9 @@ c_cmpl        = clang-20
 cpp_std       = -DPREFER_ONE_TBB -std=c++20
 
 optm_flag     = -O0
-dbg_flag      = -g
-link_flag     = -g
+
+dbg_flag      = -g -fsanitize=address,undefined
+link_flag     = -g -fsanitize=address,undefined
 
 luna_flag     = $optm_flag $dbg_flag -mavx2
 imgui_flag    = $optm_flag $dbg_flag -mavx2
@@ -21,22 +22,24 @@ ft_flag       = $optm_flag $dbg_flag -D_CRT_SECURE_NO_WARNINGS -DFT2_BUILD_LIBRA
 ###    PATH  VARS    ###
 ########################
 
-dir_blank     = BlankProject
+builddir      = build
+
+dir_imgui     = _deps/imgui
+dir_dcon      = _deps/DataContainer
+dir_dlua      = _deps/DataContainer-Lua
+dir_glew      = _deps/glew-cmake
+dir_glfw      = _deps/glfw
+dir_glm       = _deps/glm
+dir_luaj      = _deps/LuaJIT
+dir_tbb       = _deps/oneTBB
+
+dir_blank     = _deps/BlankProject
 dir_proj      = $dir_blank/src
 dir_deps      = $dir_blank/build/_deps
 
 dir_svg       = $dir_proj/lunasvg
 dir_hb        = $dir_deps/harfbuzz-src
 dir_ft        = $dir_deps/freetype-src
-
-dir_imgui     = imgui
-dir_dcon      = DataContainer
-dir_dlua      = DataContainer-Lua
-dir_glew      = glew-cmake
-dir_glfw      = glfw
-dir_glm       = glm
-dir_luaj      = LuaJIT
-dir_tbb       = oneTBB
 
 ########################
 ###  INCLUDES  VARS  ###
@@ -45,33 +48,41 @@ dir_tbb       = oneTBB
 dcom_incl     = -I./$dir_dcon/CommonIncludes
 dcon_incl     = -I./$dir_dcon/DataContainerGenerator
 
-blank_incl    = -I./$dir_proj -I./$dir_proj/gamestate -I./$dir_proj/window -I./$dir_proj/common_types $
-                -I./$dir_proj/graphics -I./$dir_proj/filesystem -I./$dir_proj/gui -I./$dir_proj/sound $
-                -I./$dir_proj/text -I./$dir_hb/src -I./$dir_ft/include  -I./$dir_svg -I./stb_image
 
 ft_incl       = -I./$dir_ft/include
 hb_incl       = -I./$dir_hb/src
 luna_incl     = -I./$dir_svg -I./stb_image
 
-com_incl      = -I./ -I./$dir_glfw/include -I./$dir_glew/include -I./$dir_imgui -I./$dir_glm -I./$dir_luaj/src -I./$dir_tbb/include $dcom_incl
+blank_incl    = -I./$dir_proj -I./$dir_proj/gamestate -I./$dir_proj/window -I./$dir_proj/common_types $
+                -I./$dir_proj/graphics -I./$dir_proj/filesystem -I./$dir_proj/gui -I./$dir_proj/sound $
+                -I./$dir_proj/text $hb_incl $ft_incl  $luna_incl
+
+glfw_incl     = -I./$dir_glfw/include
+glew_incl     = -I./$dir_glew/include
+glm_incl      = -I./$dir_glm
+imgui_incl    = -I./$dir_imgui
+luaj_incl     = -I./$dir_luaj/src
+tbb_incl      = -I./$dir_tbb/include
+
+com_incl      = -I./ $glfw_incl $glew_incl $glm_incl $imgui_incl $luaj_incl $tbb_incl $dcom_incl
 
 libs          = -L./$dir_glfw/build/src/ -Wl,-R./$dir_glfw/build/src/ -lglfw3 $
                 -L./$dir_glew/build/lib/ -Wl,-R./$dir_glew/build/lib/ -lGLEW $
                 -L./$dir_tbb/build/gnu_11.4_cxx11_64_relwithdebinfo/ -Wl,-R./$dir_tbb/build/gnu_11.4_cxx11_64_relwithdebinfo/ -ltbb $
-                -L./$dir_luaj/src/ -Wl,-R./$dir_luaj/src/ -lluajit -lGL -licuuc
+                ./$dir_luaj/src/libluajit.a -lGL -licuuc
 
 #######################
 ###   RULES  LIST   ###
 #######################
 
 rule clone_dcon
-  command = (git clone -b to_upstream --single-branch https://github.com/ineveraskedforthis/DataContainer.git) || (cd $dir_dcon && git pull origin master && cd ..) && touch flags/dcon_cloned
+  command = (git clone -b to_upstream --single-branch https://github.com/ineveraskedforthis/DataContainer.git $dir_dcon) || (cd $dir_dcon && git pull origin master && cd ..) && touch flags/dcon_cloned
 
 rule clone_dcon_lua
-  command = (git clone -b allow-creation --single-branch https://github.com/ineveraskedforthis/DataContainer-Lua.git) || (cd $dir_dlua && git pull origin allow-creation && git checkout allow-creation  && cd ..) && touch flags/dcon_lua_cloned
+  command = (git clone -b allow-creation --single-branch https://github.com/ineveraskedforthis/DataContainer-Lua.git $dir_dlua) || (cd $dir_dlua && git pull origin allow-creation && git checkout allow-creation  && cd ..) && touch flags/dcon_lua_cloned
 
 rule clone_blank_project
-  command = git clone https://github.com/ineveraskedforthis/BlankProject.git || (cd $dir_blank && git pull origin && cd ..) && touch flags/blank_project_cloned
+  command = git clone https://github.com/ineveraskedforthis/BlankProject.git $dir_blank || (cd $dir_blank && git pull origin && cd ..) && touch flags/blank_project_cloned
 
 rule clone_check
   command     = test ! -d $dir && git clone $${branch:+-b '$branch'} --single-branch --depth 1 '$url' '$dir' $
@@ -89,37 +100,37 @@ rule run
 # CONFIGURE RULES
 
 rule configure_blank_project
-  command = mkdir -p $dir_blank/build && cd $dir_blank/build && cmake .. -G Ninja -D CMAKE_CXX_COMPILER=$cpp_cmpl -D CMAKE_CXX_COMPILER=$cpp_cmpl -D CMAKE_C_COMPILER=$c_cmpl && touch ../../flags/blank_project_configured
+  command = mkdir -p $dir_blank/build && cmake -S $dir_blank -B $dir_blank/build -G Ninja -D CMAKE_CXX_COMPILER=$cpp_cmpl -D CMAKE_CXX_COMPILER=$cpp_cmpl -D CMAKE_C_COMPILER=$c_cmpl && touch flags/blank_project_configured
 
 rule configure_glfw
-  command = cd $dir_glfw && mkdir build ; cd build && cmake .. -G "Ninja" -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch ../../flags/glfw_configured
+  command = mkdir -p $dir_glfw/build && cmake -S $dir_glfw -B $dir_glfw/build -G "Ninja" -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch flags/glfw_configured
 
 rule configure_glew
-  command = cd $dir_glew && cd build && cmake ./cmake -G "Ninja" -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DGLEW_EGL=1 && touch ../../flags/glew_configured
+  command = cmake -S $dir_glew -B $dir_glew/build -G "Ninja" -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DGLEW_EGL=1 && touch flags/glew_configured
 
 rule configure_onetbb
-  command = mkdir -p $dir_tbb/build && cd $dir_tbb/build && cmake -G Ninja -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DTBB_TEST=OFF .. && touch ../../flags/onetbb_configured
+  command = mkdir -p $dir_tbb/build && cmake -B $dir_tbb/build -S $dir_tbb -G Ninja -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DTBB_TEST=OFF && touch flags/onetbb_configured
 
 # BUILD RULES
 
 rule build_glfw
-  command   = cd $dir_glfw/build && cmake --build .
+  command   = (cd $dir_glfw/build && cmake --build .) && touch flags/glfw_built
 
 rule build_glew
-  command   = cd $dir_glew/build && cmake --build .
-
-rule build_luajit
-  command   = cd $dir_luaj && make && touch ../flags/luajit_built
+  command   = (cd $dir_glew/build && cmake --build .) && touch flags/glew_built
 
 rule build_onetbb
-  command   = cd $dir_tbb/build && cmake --build . && touch ../../flags/onetbb_configured
+  command   = (cd $dir_tbb/build && cmake --build .) && touch flags/onetbb_built
+
+rule build_luajit
+  command   = (cd $dir_luaj && make -j$$(nproc) CC="$c_cmpl" CCDEBUG="-g") && touch flags/luajit_built
 
 # COMPILE RULES
 
 rule ccpp_link
-  command     = $cpp_cmpl $cpp_std $cmpl_flag $cmpl_incl $cmpl_src -o $out $
-             && mkdir -p flags && touch $out
+  command     = $cpp_cmpl $cpp_std $cmpl_flag $cmpl_incl $cmpl_src -o $out
   description = [$cpp_cmpl] $cmpl_src -> $out
+  restat      = 1
 
 rule link
   command = $cpp_cmpl $cpp_std $link_flag $in -Wl,-E $libs -mavx2 -o $out
@@ -391,7 +402,6 @@ build cache/imgui_stdlib.o: ccpp || flags/imgui_cloned
 
 # clone lunasvg
 
-
 build cache/lunasvg/graphics.o : ccpp | flags/blank_project_configured
   cmpl_src    = $dir_svg/graphics.cpp 
   cmpl_flag   = $luna_flag
@@ -527,6 +537,9 @@ build cache/sdf/sdf.o : cc_freetype $dir_ft/src/sdf/sdf.c | ftmodule.h
 # BUILD HARFBUZZ
 
 # clone harfbuzz
+
+#  $hb_flag
+#  $hb_incl $ft_incl
 
 build $dir_hb/src/hb-aat-layout.cc : phony flags/blank_project_configured
 build $dir_hb/src/hb-aat-map.cc : phony flags/blank_project_configured

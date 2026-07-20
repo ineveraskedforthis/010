@@ -1,3 +1,6 @@
+
+_deps*
+build*
 glew-cmake*
 glfw*
 glm*
