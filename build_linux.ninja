@@ -127,11 +127,6 @@ rule ccpp
   description = [$cpp_cmpl] $cmpl_src -> $out
   depfile     = $out.d
 
-rule ccpp_game
-  command = $cpp_cmpl $cpp_std $optm_flag $dbg_flag -DWINDOW_SERVER_X11 -mavx2 -MD -MF $out.d $com_incl $blank_incl -c $in -o $out
-  description = compile $out
-  depfile = $out.d
-
 rule ccpp_harfbuzz
   command = $cpp_cmpl $cpp_std $optm_flag $dbg_flag -D_CRT_SECURE_NO_WARNINGS -DHAVE_FREETYPE=TRUE -Wno-nontrivial-memcall -Wno-nontrivial-memaccess -Wno-unknown-warning-option -W -MD -MF $out.d $hb_incl $ft_incl -c $in -o $out
   description = compile $out
@@ -194,7 +189,6 @@ build 010 : link cache/main.o cache/locale.o cache/window_platform.o  cache/gl_w
 
 # BUILD ENGINE
 
-
 build cache/dcon_common.o : ccpp | flags/dcon_cloned
   cmpl_src    = $dir_dcon/CommonIncludes/common_types.cpp
   cmpl_flag   = $optm_flag $dbg_flag
@@ -205,53 +199,85 @@ build cache/frustum.o : ccpp | flags/glm_cloned
   cmpl_flag   = $optm_flag $dbg_flag
   cmpl_incl   = $com_incl
 
-build cache/main.o : ccpp_game main.cpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp data_ids.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
+build cache/main.o : ccpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp data_ids.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
+  cmpl_src    = main.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build cache/render_alice_ui.o : ccpp_game from_alice_editor_main.cpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp data_ids.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
+build cache/render_alice_ui.o : ccpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp data_ids.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
+  cmpl_src    = from_alice_editor_main.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build cache/sote_functions.o : ccpp_game sote_functions.cpp | data.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned
+build cache/sote_functions.o : ccpp | data.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned
+  cmpl_src    = sote_functions.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build cache/read_ui_files.o : ccpp_game project_file_writing.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+build cache/read_ui_files.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = project_file_writing.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build $dir_proj/gamestate/locale.cpp : phony flags/blank_project_cloned
-build cache/locale.o : ccpp_game $dir_proj/gamestate/locale.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+build cache/locale.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $dir_proj/gamestate/locale.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build $dir_proj/text/text.cpp : phony flags/blank_project_cloned
-build cache/text.o : ccpp_game $dir_proj/text/text.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+build cache/text.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $dir_proj/text/text.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build $dir_proj/text/parsers.cpp : phony flags/blank_project_cloned
-build cache/parsers.o : ccpp_game $dir_proj/text/parsers.cpp
+build cache/parsers.o : ccpp | flags/blank_project_cloned
+  cmpl_src    = $dir_proj/text/parsers.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build $dir_proj/window/window_nix.cpp : phony flags/blank_project_cloned
-build cache/window_platform.o : ccpp_game $dir_proj/window/window_nix.cpp | flags/glfw_cloned
+build cache/window_platform.o : ccpp | flags/blank_project_cloned flags/glfw_cloned
+  cmpl_src    = $dir_proj/window/window_nix.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build $dir_proj/gui/text_render.cpp : phony flags/blank_project_cloned
-build cache/text_render.o : ccpp_game $dir_proj/gui/text_render.cpp | flags/blank_project_configured flags/onetbb_cloned data_ids.hpp
+build cache/text_render.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data_ids.hpp
+  cmpl_src    = $dir_proj/gui/text_render.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build $dir_proj/gui/alice_ui.cpp : phony flags/blank_project_cloned
-build cache/alice_ui.o : ccpp_game $dir_proj/gui/alice_ui.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+build cache/alice_ui.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $dir_proj/gui/alice_ui.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build $dir_proj/graphics/opengl_wrapper.cpp : phony flags/blank_project_cloned
-build cache/gl_wrapper.o : ccpp_game $dir_proj/graphics/opengl_wrapper.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+build cache/gl_wrapper.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $dir_proj/graphics/opengl_wrapper.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build $dir_proj/graphics/asvg.cpp : phony flags/blank_project_cloned
-build cache/asvg.o : ccpp_game $dir_proj/graphics/asvg.cpp
+build cache/asvg.o : ccpp | flags/blank_project_cloned
+  cmpl_src    = $dir_proj/graphics/asvg.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build $dir_proj/graphics/texture.cpp : phony flags/blank_project_cloned
-build cache/texture.o : ccpp_game $dir_proj/graphics/texture.cpp
+build cache/texture.o : ccpp | flags/blank_project_cloned
+  cmpl_src    = $dir_proj/graphics/texture.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
-build $dir_proj/text/fonts.cpp : phony flags/blank_project_cloned | $dir_hb/src/hb.h $dir_deps/freetype/include/freetype/freetype.h
-build cache/fonts.o : ccpp_game $dir_proj/text/fonts.cpp | flags/onetbb_cloned data.hpp data_ids.hpp
-
-build $dir_proj/filesystem/simple_fs_nix.cpp : phony flags/blank_project_cloned
-build cache/simple_fs.o : ccpp_game $dir_proj/filesystem/simple_fs_nix.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
-
-build $dir_hb/src/hb.h : phony flags/blank_project_configured
-build $dir_deps/freetype/include/freetype/freetype.h : phony flags/blank_project_configured
-
-build $dir_proj/gamestate/uitemplate_serialization.cpp : phony flags/blank_project_cloned
-build cache/templates_loading.o : ccpp_game $dir_proj/gamestate/uitemplate_serialization.cpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
-
+build cache/fonts.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $dir_proj/text/fonts.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
+  
+build cache/simple_fs.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $dir_proj/filesystem/simple_fs_nix.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
+  
+build cache/templates_loading.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $dir_proj/gamestate/uitemplate_serialization.cpp
+  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_incl   = $com_incl $blank_incl
 
 # BUILD PROJECT
 
@@ -346,7 +372,7 @@ build cache/imgui_widgets.o : ccpp || flags/imgui_cloned
   cmpl_src    = $dir_imgui/imgui_widgets.cpp
   cmpl_flag   = $optm_flag $dbg_flag
   cmpl_incl   = $com_incl
-build cache/imgui_backend.o : ccpp || flags/imgui_cloned
+build cache/imgui_backend.o : ccpp || flags/imgui_cloned flags/glfw_cloned
   cmpl_src    = $dir_imgui/backends/imgui_impl_glfw.cpp
   cmpl_flag   = $optm_flag $dbg_flag
   cmpl_incl   = $com_incl
