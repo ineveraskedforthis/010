@@ -11,7 +11,11 @@ optm_flag     = -O0
 dbg_flag      = -g
 link_flag     = -g
 
-game_flag     = -DWINDOW_SERVER_X11
+luna_flag     = $optm_flag $dbg_flag -mavx2
+imgui_flag    = $optm_flag $dbg_flag -mavx2
+game_flag     = $optm_flag $dbg_flag -DWINDOW_SERVER_X11 -mavx2
+hb_flag       = $optm_flag $dbg_flag -D_CRT_SECURE_NO_WARNINGS -DHAVE_FREETYPE=TRUE -Wno-nontrivial-memcall -Wno-nontrivial-memaccess -Wno-unknown-warning-option -W
+ft_flag       = $optm_flag $dbg_flag -D_CRT_SECURE_NO_WARNINGS -DFT2_BUILD_LIBRARY -DFT_DISABLE_ZLIB=FALSE -DFT_DISABLE_BZIP2=TRUE -DFT_DISABLE_PNG=TRUE -DFT_DISABLE_BROTLI=TRUE -DFT_CONFIG_OPTION_USE_HARFBUZZ=TRUE -DFT_DISABLE_HARFBUZZ=FALSE -DHARFBUZZ_FOUND=TRUE -DFT_CONFIG_MODULES_H=\<ftmodule.h\>
 
 ########################
 ###    PATH  VARS    ###
@@ -60,12 +64,6 @@ libs          = -L./$dir_glfw/build/src/ -Wl,-R./$dir_glfw/build/src/ -lglfw3 $
 ###   RULES  LIST   ###
 #######################
 
-rule run
-  command     = ./$in $run_args $
-             && mkdir -p flags && touch $out
-  description = [run] $in
-  restat      = 1
-
 rule clone_dcon
   command = (git clone -b to_upstream --single-branch https://github.com/ineveraskedforthis/DataContainer.git) || (cd $dir_dcon && git pull origin master && cd ..) && touch flags/dcon_cloned
 
@@ -80,6 +78,12 @@ rule clone_check
              || git -C $out_dir pull origin ${branch} $
              && mkdir -p flags && touch $out
   description = [git] checking $dir : $in
+  restat      = 1
+
+rule run
+  command     = ./$in $run_args $
+             && mkdir -p flags && touch $out
+  description = [run] $in
   restat      = 1
 
 # CONFIGURE RULES
@@ -99,51 +103,45 @@ rule configure_onetbb
 # BUILD RULES
 
 rule build_glfw
-  command = cd $dir_glfw/build && cmake --build .
+  command   = cd $dir_glfw/build && cmake --build .
 
 rule build_glew
-  command = cd $dir_glew/build && cmake --build .
+  command   = cd $dir_glew/build && cmake --build .
 
 rule build_luajit
-  command = cd $dir_luaj && make && touch ../flags/luajit_built
+  command   = cd $dir_luaj && make && touch ../flags/luajit_built
 
 rule build_onetbb
-  command = cd $dir_tbb/build && cmake --build . && touch ../../flags/onetbb_configured
-
-rule compile_dcon
-  command = $cpp_cmpl $cpp_std $dcon_incl $dcom_incl -ferror-limit=1 $dir_dcon/DataContainerGenerator/DataContainerGenerator.cpp $dir_dcon/DataContainerGenerator/parsing.cpp $dir_dcon/DataContainerGenerator/code_fragments.cpp $dir_dcon/DataContainerGenerator/query_fragments.cpp $dir_dcon/DataContainerGenerator/object_member_fragments.cpp $dir_dcon/DataContainerGenerator/serialize_fragments.cpp -o $out
-
-rule compile_dcon_lua
-  command = $cpp_cmpl $cpp_std $dcon_incl $dcom_incl -ferror-limit=1 $dir_dlua/src/LuaFFIGenerator.cpp $dir_dlua/src/parser/parsing.cpp -o $out
+  command   = cd $dir_tbb/build && cmake --build . && touch ../../flags/onetbb_configured
 
 # COMPILE RULES
+
+rule ccpp_link
+  command     = $cpp_cmpl $cpp_std $cmpl_flag $cmpl_incl $cmpl_src -o $out $
+             && mkdir -p flags && touch $out
+  description = [$cpp_cmpl] $cmpl_src -> $out
 
 rule link
   command = $cpp_cmpl $cpp_std $link_flag $in -Wl,-E $libs -mavx2 -o $out
   description = link $out
 
 rule ccpp
-  command     = $cpp_cmpl $cpp_std $cmpl_flag -mavx2 -MD -MF $out.d $cmpl_incl -c $cmpl_src -o $out
+  command     = $cpp_cmpl $cpp_std $cmpl_flag -MD -MF $out.d $cmpl_incl -c $cmpl_src -o $out
   description = [$cpp_cmpl] $cmpl_src -> $out
   depfile     = $out.d
 
+rule cc
+  command     = $c_cmpl $cmpl_flag -MD -MF $out.d $cmpl_incl -c $cmpl_src -o $out
+  description = [$c_cmpl] $cmpl_src -> $out
+  depfile     = $out.d
+
 rule ccpp_harfbuzz
-  command = $cpp_cmpl $cpp_std $optm_flag $dbg_flag -D_CRT_SECURE_NO_WARNINGS -DHAVE_FREETYPE=TRUE -Wno-nontrivial-memcall -Wno-nontrivial-memaccess -Wno-unknown-warning-option -W -MD -MF $out.d $hb_incl $ft_incl -c $in -o $out
-  description = compile $out
-  depfile = $out.d
-
-rule ccpp_lunasvg
-  command = $cpp_cmpl $cpp_std $optm_flag $dbg_flag -mavx2 -MD -MF $out.d $com_incl $luna_incl -c $in -o $out
-  description = compile $out
-  depfile = $out.d
-
-rule cc_lunasvg
-  command = $c_cmpl $optm_flag $dbg_flag -mavx2 -MD -MF $out.d $com_incl $luna_incl -c $in -o $out
+  command = $cpp_cmpl $cpp_std $hb_flag -MD -MF $out.d $hb_incl $ft_incl -c $in -o $out
   description = compile $out
   depfile = $out.d
 
 rule cc_freetype
-  command = $c_cmpl $optm_flag $dbg_flag -D_CRT_SECURE_NO_WARNINGS -DFT2_BUILD_LIBRARY -DFT_DISABLE_ZLIB=FALSE -DFT_DISABLE_BZIP2=TRUE -DFT_DISABLE_PNG=TRUE -DFT_DISABLE_BROTLI=TRUE -DFT_CONFIG_OPTION_USE_HARFBUZZ=TRUE -DFT_DISABLE_HARFBUZZ=FALSE -DHARFBUZZ_FOUND=TRUE -DFT_CONFIG_MODULES_H=\<ftmodule.h\> -I. -MD -MF $out.d $ft_incl -c $in -o $out
+  command = $c_cmpl $ft_flag -MD -MF $out.d $ft_incl -I. -c $in -o $out
   description = compile $out
   depfile = $out.d
 
@@ -191,92 +189,92 @@ build 010 : link cache/main.o cache/locale.o cache/window_platform.o  cache/gl_w
 
 build cache/dcon_common.o : ccpp | flags/dcon_cloned
   cmpl_src    = $dir_dcon/CommonIncludes/common_types.cpp
-  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_flag   = $optm_flag $dbg_flag -mavx2
   cmpl_incl   = $com_incl
 
 build cache/frustum.o : ccpp | flags/glm_cloned
   cmpl_src    = frustum.cpp
-  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_flag   = $optm_flag $dbg_flag -mavx2
   cmpl_incl   = $com_incl
 
 build cache/main.o : ccpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp data_ids.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
   cmpl_src    = main.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/render_alice_ui.o : ccpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp data_ids.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
   cmpl_src    = from_alice_editor_main.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/sote_functions.o : ccpp | data.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned
   cmpl_src    = sote_functions.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/read_ui_files.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
   cmpl_src    = project_file_writing.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/locale.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
   cmpl_src    = $dir_proj/gamestate/locale.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/text.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
   cmpl_src    = $dir_proj/text/text.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/parsers.o : ccpp | flags/blank_project_cloned
   cmpl_src    = $dir_proj/text/parsers.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/window_platform.o : ccpp | flags/blank_project_cloned flags/glfw_cloned
   cmpl_src    = $dir_proj/window/window_nix.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/text_render.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data_ids.hpp
   cmpl_src    = $dir_proj/gui/text_render.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/alice_ui.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
   cmpl_src    = $dir_proj/gui/alice_ui.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/gl_wrapper.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
   cmpl_src    = $dir_proj/graphics/opengl_wrapper.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/asvg.o : ccpp | flags/blank_project_cloned
   cmpl_src    = $dir_proj/graphics/asvg.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/texture.o : ccpp | flags/blank_project_cloned
   cmpl_src    = $dir_proj/graphics/texture.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 build cache/fonts.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
   cmpl_src    = $dir_proj/text/fonts.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
   
 build cache/simple_fs.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
   cmpl_src    = $dir_proj/filesystem/simple_fs_nix.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
   
 build cache/templates_loading.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
   cmpl_src    = $dir_proj/gamestate/uitemplate_serialization.cpp
-  cmpl_flag   = $optm_flag $dbg_flag $game_flag
+  cmpl_flag   = $game_flag
   cmpl_incl   = $com_incl $blank_incl
 
 # BUILD PROJECT
@@ -291,11 +289,13 @@ build flags/dcon_cloned : clone_dcon
 #  url         = https://github.com/ineveraskedforthis/DataContainer.git
 #  dir         = $dir_dcon
 #  branch      = to_upstream
-build DCON : compile_dcon flags/dcon_cloned
-#build data.hpp | data_ids.hpp : use_dcon ./data.txt | DCON
-build flags/dcon_ran | data.hpp data_ids.hpp : run DCON data.txt
-
-build $dir_dcon/CommonIncludes/common_types.cpp : phony flags/dcon_cloned
+build DCON : ccpp_link | flags/dcon_cloned
+  cmpl_src    = $dir_dcon/DataContainerGenerator/DataContainerGenerator.cpp $dir_dcon/DataContainerGenerator/parsing.cpp $
+                $dir_dcon/DataContainerGenerator/code_fragments.cpp $dir_dcon/DataContainerGenerator/query_fragments.cpp $
+                $dir_dcon/DataContainerGenerator/object_member_fragments.cpp $dir_dcon/DataContainerGenerator/serialize_fragments.cpp
+  cmpl_flag   = $optm_flag $dbg_flag -ferror-limit=1
+  cmpl_incl   = $dcom_incl $dcon_incl
+build flags/dcon_ran | data.hpp data_ids.hpp : run DCON data.txt DCON
 
 # BUILD DCON_LUA
 
@@ -304,8 +304,10 @@ build flags/dcon_lua_cloned : clone_dcon_lua
 #  url         = https://github.com/ineveraskedforthis/DataContainer-Lua.git
 #  dir         = $dir_dlua
 #  branch      = allow-creation
-build DCON_LUA : compile_dcon_lua | flags/dcon_lua_cloned flags/dcon_cloned
-#build lua-export.hpp : use_dcon_lua ./data.txt | DCON_LUA
+build DCON_LUA : ccpp_link | flags/dcon_lua_cloned flags/dcon_cloned
+  cmpl_src    = $dir_dlua/src/LuaFFIGenerator.cpp $dir_dlua/src/parser/parsing.cpp
+  cmpl_flag   = $optm_flag $dbg_flag -ferror-limit=1
+  cmpl_incl   = $dcom_incl $dcon_incl
 build flags/dcon_lua_ran | lua-export.hpp : run DCON_LUA
   run_args    = "sote" "state." "data.txt" "lua-export.cpp" "lua-export.hpp" "./codegen-lua"
 
@@ -354,90 +356,134 @@ build flags/imgui_cloned : clone_check
 
 build cache/imgui.o : ccpp || flags/imgui_cloned
   cmpl_src    = $dir_imgui/imgui.cpp
-  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_flag   = $optm_flag $dbg_flag -mavx2
   cmpl_incl   = $com_incl
 build cache/imgui_draw.o : ccpp || flags/imgui_cloned
   cmpl_src    = $dir_imgui/imgui_draw.cpp
-  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_flag   = $optm_flag $dbg_flag -mavx2
   cmpl_incl   = $com_incl
 build cache/imgui_demo.o : ccpp || flags/imgui_cloned
   cmpl_src    = $dir_imgui/imgui_demo.cpp
-  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_flag   = $optm_flag $dbg_flag -mavx2
   cmpl_incl   = $com_incl
 build cache/imgui_tables.o : ccpp || flags/imgui_cloned
   cmpl_src    = $dir_imgui/imgui_tables.cpp
-  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_flag   = $optm_flag $dbg_flag -mavx2
   cmpl_incl   = $com_incl
 build cache/imgui_widgets.o : ccpp || flags/imgui_cloned
   cmpl_src    = $dir_imgui/imgui_widgets.cpp
-  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_flag   = $optm_flag $dbg_flag -mavx2
   cmpl_incl   = $com_incl
 build cache/imgui_backend.o : ccpp || flags/imgui_cloned flags/glfw_cloned
   cmpl_src    = $dir_imgui/backends/imgui_impl_glfw.cpp
-  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_flag   = $optm_flag $dbg_flag -mavx2
   cmpl_incl   = $com_incl
 build cache/imgui_backend_gl.o : ccpp || flags/imgui_cloned
   cmpl_src    = $dir_imgui/backends/imgui_impl_opengl3.cpp
-  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_flag   = $optm_flag $dbg_flag -mavx2
   cmpl_incl   = $com_incl
 build cache/imgui_stdlib.o: ccpp || flags/imgui_cloned
   cmpl_src    = $dir_imgui/misc/cpp/imgui_stdlib.cpp
-  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_flag   = $optm_flag $dbg_flag -mavx2
   cmpl_incl   = $com_incl
 
 # BUILD LUNASVG
 
 # clone lunasvg
 
-build $dir_svg/graphics.cpp : phony flags/blank_project_configured
-build $dir_svg/lunasvg.cpp : phony flags/blank_project_configured
-build $dir_svg/svgelement.cpp : phony flags/blank_project_configured
-build $dir_svg/svggeometryelement.cpp : phony flags/blank_project_configured
-build $dir_svg/svglayoutstate.cpp : phony flags/blank_project_configured
-build $dir_svg/svgpaintelement.cpp : phony flags/blank_project_configured
-build $dir_svg/svgparser.cpp : phony flags/blank_project_configured
-build $dir_svg/svgproperty.cpp : phony flags/blank_project_configured
-build $dir_svg/svgrenderstate.cpp : phony flags/blank_project_configured
-build $dir_svg/svgtextelement.cpp : phony flags/blank_project_configured
 
-build cache/lunasvg/graphics.o : ccpp_lunasvg $dir_svg/graphics.cpp 
-build cache/lunasvg/lunasvg.o : ccpp_lunasvg $dir_svg/lunasvg.cpp
-build cache/lunasvg/svgelement.o : ccpp_lunasvg $dir_svg/svgelement.cpp
-build cache/lunasvg/svggeometryelement.o : ccpp_lunasvg $dir_svg/svggeometryelement.cpp
-build cache/lunasvg/svglayoutstate.o : ccpp_lunasvg $dir_svg/svglayoutstate.cpp
-build cache/lunasvg/svgpaintelement.o : ccpp_lunasvg $dir_svg/svgpaintelement.cpp
-build cache/lunasvg/svgparser.o : ccpp_lunasvg $dir_svg/svgparser.cpp
-build cache/lunasvg/svgproperty.o : ccpp_lunasvg $dir_svg/svgproperty.cpp
-build cache/lunasvg/svgrenderstate.o : ccpp_lunasvg $dir_svg/svgrenderstate.cpp
-build cache/lunasvg/svgtextelement.o : ccpp_lunasvg $dir_svg/svgtextelement.cpp
+build cache/lunasvg/graphics.o : ccpp | flags/blank_project_configured
+  cmpl_src    = $dir_svg/graphics.cpp 
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/lunasvg.o : ccpp | flags/blank_project_configured
+  cmpl_src    = $dir_svg/lunasvg.cpp
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/svgelement.o : ccpp | flags/blank_project_configured
+  cmpl_src    = $dir_svg/svgelement.cpp
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/svggeometryelement.o : ccpp | flags/blank_project_configured
+  cmpl_src    = $dir_svg/svggeometryelement.cpp
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/svglayoutstate.o : ccpp | flags/blank_project_configured
+  cmpl_src    = $dir_svg/svglayoutstate.cpp
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/svgpaintelement.o : ccpp | flags/blank_project_configured
+  cmpl_src    = $dir_svg/svgpaintelement.cpp
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/svgparser.o : ccpp | flags/blank_project_configured
+  cmpl_src    = $dir_svg/svgparser.cpp
+  cmpl_flag   = $optm_flag $dbg_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/svgproperty.o : ccpp | flags/blank_project_configured
+  cmpl_src    = $dir_svg/svgproperty.cpp
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/svgrenderstate.o : ccpp | flags/blank_project_configured
+  cmpl_src    = $dir_svg/svgrenderstate.cpp
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/svgtextelement.o : ccpp | flags/blank_project_configured
+  cmpl_src    = $dir_svg/svgtextelement.cpp
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
 
-build $dir_svg/plutovg-blend.c : phony flags/blank_project_configured
-build $dir_svg/plutovg-canvas.c : phony flags/blank_project_configured
-build $dir_svg/plutovg-font.c : phony flags/blank_project_configured
-build $dir_svg/plutovg-ft-math.c : phony flags/blank_project_configured
-build $dir_svg/plutovg-ft-raster.c : phony flags/blank_project_configured
-build $dir_svg/plutovg-ft-stroker.c : phony flags/blank_project_configured
-build $dir_svg/plutovg-matrix.c : phony flags/blank_project_configured
-build $dir_svg/plutovg-paint.c : phony flags/blank_project_configured
-build $dir_svg/plutovg-path.c : phony flags/blank_project_configured
-build $dir_svg/plutovg-rasterize.c : phony flags/blank_project_configured
-build $dir_svg/plutovg-surface.c : phony flags/blank_project_configured
-
-build cache/lunasvg/plutovg-blend.o : cc_lunasvg $dir_svg/plutovg-blend.c
-build cache/lunasvg/plutovg-canvas.o : cc_lunasvg $dir_svg/plutovg-canvas.c
-build cache/lunasvg/plutovg-font.o : cc_lunasvg $dir_svg/plutovg-font.c
-build cache/lunasvg/plutovg-ft-math.o : cc_lunasvg $dir_svg/plutovg-ft-math.c
-build cache/lunasvg/plutovg-ft-raster.o : cc_lunasvg $dir_svg/plutovg-ft-raster.c
-build cache/lunasvg/plutovg-ft-stroker.o : cc_lunasvg $dir_svg/plutovg-ft-stroker.c
-build cache/lunasvg/plutovg-matrix.o : cc_lunasvg $dir_svg/plutovg-matrix.c
-build cache/lunasvg/plutovg-paint.o : cc_lunasvg $dir_svg/plutovg-paint.c
-build cache/lunasvg/plutovg-path.o : cc_lunasvg $dir_svg/plutovg-path.c
-build cache/lunasvg/plutovg-rasterize.o : cc_lunasvg $dir_svg/plutovg-rasterize.c
-build cache/lunasvg/plutovg-surface.o : cc_lunasvg $dir_svg/plutovg-surface.c
+build cache/lunasvg/plutovg-blend.o : cc | flags/blank_project_configured
+  cmpl_src    = $dir_svg/plutovg-blend.c
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/plutovg-canvas.o : cc | flags/blank_project_configured
+  cmpl_src    = $dir_svg/plutovg-canvas.c
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/plutovg-font.o : cc | flags/blank_project_configured
+  cmpl_src    = $dir_svg/plutovg-font.c
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/plutovg-ft-math.o : cc | flags/blank_project_configured
+  cmpl_src    = $dir_svg/plutovg-ft-math.c
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/plutovg-ft-raster.o : cc | flags/blank_project_configured
+  cmpl_src    = $dir_svg/plutovg-ft-raster.c
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/plutovg-ft-stroker.o : cc | flags/blank_project_configured
+  cmpl_src    = $dir_svg/plutovg-ft-stroker.c
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/plutovg-matrix.o : cc | flags/blank_project_configured
+  cmpl_src    = $dir_svg/plutovg-matrix.c
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/plutovg-paint.o : cc | flags/blank_project_configured
+  cmpl_src    = $dir_svg/plutovg-paint.c
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/plutovg-path.o : cc | flags/blank_project_configured
+  cmpl_src    = $dir_svg/plutovg-path.c
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/plutovg-rasterize.o : cc | flags/blank_project_configured
+  cmpl_src    = $dir_svg/plutovg-rasterize.c
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
+build cache/lunasvg/plutovg-surface.o : cc | flags/blank_project_configured
+  cmpl_src    = $dir_svg/plutovg-surface.c
+  cmpl_flag   = $luna_flag
+  cmpl_incl   = $com_incl $luna_incl
 
 # BUILD FREETYPE
 
 # clone freetype
+
+#  $optm_flag $dbg_flag $ft_flag
+#  $ft_incl -I.
 
 build $dir_ft/src/base/ftsystem.c : phony flags/blank_project_configured
 build cache/ftsystem.o : cc_freetype $dir_ft/src/base/ftsystem.c | ftmodule.h
