@@ -9,7 +9,7 @@ cpp_std       = -DPREFER_ONE_TBB -std=c++20
 
 optm_flag     = -O0
 dbg_flag      = -g
-link_flag     = -g -fuse-ld=lld
+link_flag     = -g
 
 game_flag     = -DWINDOW_SERVER_X11
 
@@ -60,12 +60,10 @@ libs          = -L./$dir_glfw/build/src/ -Wl,-R./$dir_glfw/build/src/ -lglfw3 $
 ###   RULES  LIST   ###
 #######################
 
-rule use_dcon
-  command     = ./DCON $in
-  restat      = 1
-
-rule use_dcon_lua
-  command     = ./DCON_LUA "sote" "state." "$in" "lua-export.cpp" "lua-export.hpp" "./codegen-lua"
+rule run
+  command     = ./$in $run_args $
+             && mkdir -p flags && touch $out
+  description = [run] $in
   restat      = 1
 
 rule clone_dcon
@@ -268,7 +266,8 @@ build flags/dcon_cloned : clone_dcon
 #  dir         = $dir_dcon
 #  branch      = to_upstream
 build DCON : compile_dcon flags/dcon_cloned
-build data.hpp | data_ids.hpp : use_dcon ./data.txt | DCON
+#build data.hpp | data_ids.hpp : use_dcon ./data.txt | DCON
+build flags/dcon_ran | data.hpp data_ids.hpp : run DCON data.txt
 
 build $dir_dcon/CommonIncludes/common_types.cpp : phony flags/dcon_cloned
 
@@ -280,7 +279,9 @@ build flags/dcon_lua_cloned : clone_dcon_lua
 #  dir         = $dir_dlua
 #  branch      = allow-creation
 build DCON_LUA : compile_dcon_lua | flags/dcon_lua_cloned flags/dcon_cloned
-build lua-export.hpp : use_dcon_lua ./data.txt | DCON_LUA
+#build lua-export.hpp : use_dcon_lua ./data.txt | DCON_LUA
+build flags/dcon_lua_ran | lua-export.hpp : run DCON_LUA
+  run_args    = "sote" "state." "data.txt" "lua-export.cpp" "lua-export.hpp" "./codegen-lua"
 
 # BUILD ONETBB
 
@@ -360,6 +361,8 @@ build cache/imgui_stdlib.o: ccpp || flags/imgui_cloned
 
 # BUILD LUNASVG
 
+# clone lunasvg
+
 build $dir_svg/graphics.cpp : phony flags/blank_project_configured
 build $dir_svg/lunasvg.cpp : phony flags/blank_project_configured
 build $dir_svg/svgelement.cpp : phony flags/blank_project_configured
@@ -408,6 +411,8 @@ build cache/lunasvg/plutovg-surface.o : cc_lunasvg $dir_svg/plutovg-surface.c
 
 # BUILD FREETYPE
 
+# clone freetype
+
 build $dir_ft/src/base/ftsystem.c : phony flags/blank_project_configured
 build cache/ftsystem.o : cc_freetype $dir_ft/src/base/ftsystem.c | ftmodule.h
 build $dir_ft/src/base/ftinit.c : phony flags/blank_project_configured
@@ -448,6 +453,8 @@ build $dir_ft/src/sdf/sdf.c : phony flags/blank_project_configured
 build cache/sdf/sdf.o : cc_freetype $dir_ft/src/sdf/sdf.c | ftmodule.h
 
 # BUILD HARFBUZZ
+
+# clone harfbuzz
 
 build $dir_hb/src/hb-aat-layout.cc : phony flags/blank_project_configured
 build $dir_hb/src/hb-aat-map.cc : phony flags/blank_project_configured
