@@ -9,8 +9,8 @@ cpp_std       = -DPREFER_ONE_TBB -std=c++20
 
 optm_flag     = -O0
 
-dbg_flag      = -g -fsanitize=address,undefined
-link_flag     = -g -fsanitize=address,undefined
+dbg_flag      = -g
+link_flag     = -g
 
 luna_flag     = $optm_flag $dbg_flag -mavx2
 imgui_flag    = $optm_flag $dbg_flag -mavx2
@@ -22,108 +22,144 @@ ft_flag       = $optm_flag $dbg_flag -D_CRT_SECURE_NO_WARNINGS -DFT2_BUILD_LIBRA
 ###    PATH  VARS    ###
 ########################
 
+
+srcdir        = source
+filesdir      = $srcdir/filesystem
+ftmdir        = $srcdir/ftmodule
+sotedir       = $srcdir/sote
+descdir       = $srcdir/project_description
+
 builddir      = build
+flagsdir      = $builddir/flags
+depsdir       = $builddir/deps
+objdir        = $builddir/obj
+gameobj       = $objdir/game
+editdir       = $objdir/edit
+bindir        = $builddir/bin
 
-dir_imgui     = _deps/imgui
-dir_dcon      = _deps/DataContainer
-dir_dlua      = _deps/DataContainer-Lua
-dir_glew      = _deps/glew-cmake
-dir_glfw      = _deps/glfw
-dir_glm       = _deps/glm
-dir_luaj      = _deps/LuaJIT
-dir_tbb       = _deps/oneTBB
+blankdir      = $depsdir/BlankProject
+projdir       = $blankdir/src
 
-dir_blank     = _deps/BlankProject
-dir_proj      = $dir_blank/src
-dir_deps      = $dir_blank/build/_deps
+dcondir       = $depsdir/DataContainer
+dluadir       = $depsdir/DataContainer-Lua
 
-dir_svg       = $dir_proj/lunasvg
-dir_hb        = $dir_deps/harfbuzz-src
-dir_ft        = $dir_deps/freetype-src
+glmdir        = $depsdir/glm
+#ftdir        = $depsdir/freetype
+#hbdir        = $depsdir/harfbuzz
+ftdir         = $blankdir/build/_deps/freetype-src
+hbdir         = $blankdir/build/_deps/harfbuzz-src
+
+glewdir       = $depsdir/glew-cmake
+glfwdir       = $depsdir/glfw
+imgdir        = $depsdir/imgui
+tbbdir        = $depsdir/oneTBB
+luajdir       = $depsdir/LuaJIT
+
+glewobj       = $objdir/glew
+glfwobj       = $objdir/glfw
+imgobj        = $objdir/imgui
+luajobj       = $objdir/luajit
+tbbobj        = $objdir/onetbb
+
+ftobj         = $objdir/freetype
+hbobj         = $objdir/harfbuzz
+
+# ! special lunasvg ! #
+lunadir       = $projdir/lunasvg
+lunaobj       =   $objdir/lunasvg
 
 ########################
 ###  INCLUDES  VARS  ###
 ########################
 
-dcom_incl     = -I./$dir_dcon/CommonIncludes
-dcon_incl     = -I./$dir_dcon/DataContainerGenerator
+sote_incl     = -I./$sotedir
+desc_incl     = -I./$descdir
 
+dense_incl    = -I./build/deps/BlankProject/build/_deps/datacontainer-src/CommonIncludes
+dcon_incl     = -I./$dcondir/DataContainerGenerator
 
-ft_incl       = -I./$dir_ft/include
-hb_incl       = -I./$dir_hb/src
-luna_incl     = -I./$dir_svg -I./stb_image
+ft_incl       = -I./$ftdir/include
+hb_incl       = -I./$hbdir/src
+luna_incl     = -I./$lunadir -I./$srcdir/stb_image
 
-blank_incl    = -I./$dir_proj -I./$dir_proj/gamestate -I./$dir_proj/window -I./$dir_proj/common_types $
-                -I./$dir_proj/graphics -I./$dir_proj/filesystem -I./$dir_proj/gui -I./$dir_proj/sound $
-                -I./$dir_proj/text $hb_incl $ft_incl  $luna_incl
+state_incl    = -I./$projdir/gamestate
+window_incl   = -I./$projdir/window
+types_incl    = -I./$projdir/common_types
+gfx_incl      = -I./$projdir/graphics -I./$projdir/gui 
+sound_incl    = -I./$projdir/sound
 
-glfw_incl     = -I./$dir_glfw/include
-glew_incl     = -I./$dir_glew/include
-glm_incl      = -I./$dir_glm
-imgui_incl    = -I./$dir_imgui
-luaj_incl     = -I./$dir_luaj/src
-tbb_incl      = -I./$dir_tbb/include
+filesrc_incl  = -I./$projdir/filesystem $types_incl
+text_incl     = -I./$projdir/text $ft_incl $hb_incl
 
-com_incl      = -I./ $glfw_incl $glew_incl $glm_incl $imgui_incl $luaj_incl $tbb_incl $dcom_incl
+glfw_incl     = -I./$glfwdir/include
+glew_incl     = -I./$glewdir/include
+glm_incl      = -I./$glmdir
+imgui_incl    = -I./$imgdir
+luaj_incl     = -I./$luajdir/src
+tbb_incl      = -I./$tbbdir/include
 
-libs          = -L./$dir_glfw/build/src/ -Wl,-R./$dir_glfw/build/src/ -lglfw3 $
-                -L./$dir_glew/build/lib/ -Wl,-R./$dir_glew/build/lib/ -lGLEW $
-                -L./$dir_tbb/build/gnu_11.4_cxx11_64_relwithdebinfo/ -Wl,-R./$dir_tbb/build/gnu_11.4_cxx11_64_relwithdebinfo/ -ltbb $
-                ./$dir_luaj/src/libluajit.a -lGL -licuuc
+com_incl      = -I./ $glfw_incl $glew_incl $glm_incl $imgui_incl $luaj_incl $tbb_incl $dense_incl
+
+data_incl     = -I.
+
+libs          = -L./$glfwdir/build/src/ -Wl,-R./$glfwdir/build/src/ -lglfw3 $
+                -L./$glewdir/build/lib/ -Wl,-R./$glewdir/build/lib/ -lGLEW $
+                -L./$tbbdir/build/gnu_11.4_cxx11_64_relwithdebinfo/ -Wl,-R./$tbbdir/build/gnu_11.4_cxx11_64_relwithdebinfo/ -ltbb $
+                ./$luajdir/src/libluajit.a -lGL -licuuc
 
 #######################
 ###   RULES  LIST   ###
 #######################
 
 rule clone_dcon
-  command = (git clone -b to_upstream --single-branch https://github.com/ineveraskedforthis/DataContainer.git $dir_dcon) || (cd $dir_dcon && git pull origin master && cd ..) && touch flags/dcon_cloned
+  command = (git clone -b to_upstream --single-branch https://github.com/ineveraskedforthis/DataContainer.git $dcondir) || (cd $dcondir && git pull origin master && cd ..) && touch $flagsdir/dcon_cloned
 
 rule clone_dcon_lua
-  command = (git clone -b allow-creation --single-branch https://github.com/ineveraskedforthis/DataContainer-Lua.git $dir_dlua) || (cd $dir_dlua && git pull origin allow-creation && git checkout allow-creation  && cd ..) && touch flags/dcon_lua_cloned
+  command = (git clone -b allow-creation --single-branch https://github.com/ineveraskedforthis/DataContainer-Lua.git $dluadir) || (cd $dluadir && git pull origin allow-creation && git checkout allow-creation  && cd ..) && touch $flagsdir/dcon_lua_cloned
 
 rule clone_blank_project
-  command = git clone https://github.com/ineveraskedforthis/BlankProject.git $dir_blank || (cd $dir_blank && git pull origin && cd ..) && touch flags/blank_project_cloned
+  command = git clone https://github.com/ineveraskedforthis/BlankProject.git $blankdir || (cd $blankdir && git pull origin && cd ..) && touch $flagsdir/blank_project_cloned
 
 rule clone_check
   command     = test ! -d $dir && git clone $${branch:+-b '$branch'} --single-branch --depth 1 '$url' '$dir' $
              || git -C $out_dir pull origin ${branch} $
-             && mkdir -p flags && touch $out
+             && mkdir -p $flagsdir && touch $out
   description = [git] checking $dir : $in
   restat      = 1
 
 rule run
   command     = ./$in $run_args $
-             && mkdir -p flags && touch $out
+             && mkdir -p $flagsdir && touch $out
   description = [run] $in
   restat      = 1
 
 # CONFIGURE RULES
 
 rule configure_blank_project
-  command = mkdir -p $dir_blank/build && cmake -S $dir_blank -B $dir_blank/build -G Ninja -D CMAKE_CXX_COMPILER=$cpp_cmpl -D CMAKE_CXX_COMPILER=$cpp_cmpl -D CMAKE_C_COMPILER=$c_cmpl && touch flags/blank_project_configured
+  command = mkdir -p $blankdir/build && cmake -S $blankdir -B $blankdir/build -G Ninja -D CMAKE_CXX_COMPILER=$cpp_cmpl -D CMAKE_CXX_COMPILER=$cpp_cmpl -D CMAKE_C_COMPILER=$c_cmpl && touch $flagsdir/blank_project_configured
 
 rule configure_glfw
-  command = mkdir -p $dir_glfw/build && cmake -S $dir_glfw -B $dir_glfw/build -G "Ninja" -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch flags/glfw_configured
+  command = mkdir -p $glfwdir/build && cmake -S $glfwdir -B $glfwdir/build -G "Ninja" -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch $flagsdir/glfw_configured
 
 rule configure_glew
-  command = cmake -S $dir_glew -B $dir_glew/build -G "Ninja" -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DGLEW_EGL=1 && touch flags/glew_configured
+  command = cmake -S $glewdir -B $glewdir/build -G "Ninja" -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DGLEW_EGL=1 && touch $flagsdir/glew_configured
 
 rule configure_onetbb
-  command = mkdir -p $dir_tbb/build && cmake -B $dir_tbb/build -S $dir_tbb -G Ninja -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DTBB_TEST=OFF && touch flags/onetbb_configured
+  command = mkdir -p $tbbdir/build && cmake -B $tbbdir/build -S $tbbdir -G Ninja -D CMAKE_C_COMPILER=$c_cmpl -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DTBB_TEST=OFF && touch $flagsdir/onetbb_configured
 
 # BUILD RULES
 
 rule build_glfw
-  command   = (cd $dir_glfw/build && cmake --build .) && touch flags/glfw_built
+  command   = cmake --build $glfwdir/build && touch $flagsdir/glfw_built
 
 rule build_glew
-  command   = (cd $dir_glew/build && cmake --build .) && touch flags/glew_built
+  command   = cmake --build $glewdir/build && touch $flagsdir/glew_built
 
 rule build_onetbb
-  command   = (cd $dir_tbb/build && cmake --build .) && touch flags/onetbb_built
+  command   = cmake --build $tbbdir/build && touch $flagsdir/onetbb_built
 
 rule build_luajit
-  command   = (cd $dir_luaj && make -j$$(nproc) CC="$c_cmpl" CCDEBUG="-g") && touch flags/luajit_built
+  command   = make -C $luajdir -j$$(nproc) CC="$c_cmpl" CCDEBUG="-g" && touch $flagsdir/luajit_built
 
 # COMPILE RULES
 
@@ -152,7 +188,7 @@ rule ccpp_harfbuzz
   depfile = $out.d
 
 rule cc_freetype
-  command = $c_cmpl $ft_flag -MD -MF $out.d $ft_incl -I. -c $in -o $out
+  command = $c_cmpl $ft_flag -MD -MF $out.d $ft_incl -I$ftmdir -c $in -o $out
   description = compile $out
   depfile = $out.d
 
@@ -162,331 +198,329 @@ rule cc_freetype
 
 # LINK ENGINE
 
-# block 1. game objects 
-# block 2. freetype objects
-# block 3. harfbuzz objects
-# block 4. imgui objects
-build 010 : link cache/main.o cache/locale.o cache/window_platform.o  cache/gl_wrapper.o cache/dcon_common.o $
-              cache/alice_ui.o cache/read_ui_files.o cache/templates_loading.o cache/simple_fs.o cache/parsers.o $
-              cache/render_alice_ui.o cache/asvg.o cache/texture.o cache/text_render.o cache/text.o cache/frustum.o $
-              cache/gzip/ftgzip.o cache/sfnt/sfnt.o cache/psnames/psnames.o cache/ftbitmap.o cache/ftsystem.o $
-              cache/ftdebug.o cache/ftbase.o cache/ftbbox.o cache/ftglyph.o cache/ft-hb.o cache/hb-ft.o $
-              cache/ft-hb-ft.o cache/ftmm.o cache/smooth/smooth.o cache/raster/raster.o cache/sdf/sdf.o $
-              cache/src/truetype/truetype.o cache/ftsvg.o cache/ftinit.o $
-              cache/hb-aat-layout.o cache/hb-aat-map.o cache/hb-blob.o cache/hb-buffer-serialize.o $
-              cache/hb-buffer-verify.o cache/hb-buffer.o cache/hb-common.o cache/hb-draw.o cache/hb-paint.o $
-              cache/hb-paint-extents.o cache/hb-face.o cache/hb-face-builder.o cache/hb-fallback-shape.o $
-              cache/hb-font.o cache/hb-map.o cache/hb-number.o cache/hb-ot-cff1-table.o cache/cff/cff.o $
-              cache/hb-ot-cff2-table.o cache/hb-ot-color.o cache/hb-ot-face.o cache/hb-ot-font.o $
-              cache/hb-outline.o cache/hb-ot-layout.o cache/hb-ot-map.o cache/hb-ot-math.o cache/hb-ot-meta.o $
-              cache/hb-ot-metrics.o cache/hb-ot-name.o cache/hb-ot-shaper-arabic.o cache/hb-ot-shaper-default.o $
-              cache/hb-ot-shaper-hangul.o cache/hb-ot-shaper-hebrew.o cache/hb-ot-shaper-indic-table.o $
-              cache/hb-ot-shaper-indic.o cache/hb-ot-shaper-khmer.o cache/hb-ot-shaper-myanmar.o cache/hb-ucd.o $
-              cache/hb-ot-shaper-syllabic.o cache/hb-ot-shaper-thai.o cache/hb-ot-shaper-use.o cache/hb-unicode.o $
-              cache/hb-ot-shaper-vowel-constraints.o cache/hb-ot-shape-fallback.o cache/hb-ot-shape-normalize.o $
-              cache/hb-ot-shape.o cache/hb-ot-tag.o cache/hb-ot-var.o cache/hb-set.o cache/hb-shape-plan.o $
-              cache/hb-shape.o cache/hb-shaper.o cache/hb-static.o cache/hb-style.o $
-              cache/lunasvg/plutovg-surface.o cache/lunasvg/svgtextelement.o cache/lunasvg/lunasvg.o cache/lunasvg/graphics.o $
-              cache/lunasvg/svggeometryelement.o cache/lunasvg/svgelement.o cache/lunasvg/svgrenderstate.o cache/lunasvg/svgproperty.o $
-              cache/lunasvg/svgparser.o cache/lunasvg/svgpaintelement.o cache/lunasvg/svglayoutstate.o cache/lunasvg/plutovg-canvas.o $
-              cache/lunasvg/plutovg-blend.o cache/lunasvg/plutovg-rasterize.o cache/lunasvg/plutovg-path.o cache/lunasvg/plutovg-paint.o $
-              cache/lunasvg/plutovg-matrix.o cache/lunasvg/plutovg-ft-stroker.o cache/lunasvg/plutovg-ft-raster.o cache/lunasvg/plutovg-ft-math.o $
-              cache/lunasvg/plutovg-font.o $
-              cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o $
-              cache/imgui_draw.o cache/imgui.o cache/sote_functions.o cache/fonts.o $
-            | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so
+build 010 : link $gameobj/main.o $gameobj/locale.o $gameobj/window_platform.o  $gameobj/gl_wrapper.o $gameobj/dcon_common.o $gameobj/sote_functions.o $
+              $gameobj/alice_ui.o $gameobj/read_ui_files.o $gameobj/templates_loading.o $gameobj/simple_fs.o $gameobj/parsers.o $gameobj/fonts.o $
+              $gameobj/render_alice_ui.o $gameobj/asvg.o $gameobj/texture.o $gameobj/text_render.o $gameobj/text.o $gameobj/frustum.o $
+              $ftobj/gzip/ftgzip.o $ftobj/sfnt/sfnt.o $ftobj/psnames/psnames.o $ftobj/ftbitmap.o $ftobj/ftsystem.o $
+              $ftobj/ftdebug.o $ftobj/ftbase.o $ftobj/ftbbox.o $ftobj/ftglyph.o $ftobj/ft-hb.o $
+              $ftobj/ft-hb-ft.o $ftobj/ftmm.o $ftobj/smooth/smooth.o $ftobj/raster/raster.o $ftobj/sdf/sdf.o $
+              $ftobj/src/truetype/truetype.o $ftobj/ftsvg.o $ftobj/ftinit.o $ftobj/cff/cff.o $
+              $hbobj/hb-aat-layout.o $hbobj/hb-aat-map.o $hbobj/hb-blob.o $hbobj/hb-buffer-serialize.o $
+              $hbobj/hb-buffer-verify.o $hbobj/hb-buffer.o $hbobj/hb-common.o $hbobj/hb-draw.o $hbobj/hb-paint.o $
+              $hbobj/hb-paint-extents.o $hbobj/hb-face.o $hbobj/hb-face-builder.o $hbobj/hb-fallback-shape.o $
+              $hbobj/hb-font.o $hbobj/hb-map.o $hbobj/hb-number.o $hbobj/hb-ot-cff1-table.o $
+              $hbobj/hb-ot-cff2-table.o $hbobj/hb-ot-color.o $hbobj/hb-ot-face.o $hbobj/hb-ot-font.o $hbobj/hb-ft.o $
+              $hbobj/hb-outline.o $hbobj/hb-ot-layout.o $hbobj/hb-ot-map.o $hbobj/hb-ot-math.o $hbobj/hb-ot-meta.o $
+              $hbobj/hb-ot-metrics.o $hbobj/hb-ot-name.o $hbobj/hb-ot-shaper-arabic.o $hbobj/hb-ot-shaper-default.o $
+              $hbobj/hb-ot-shaper-hangul.o $hbobj/hb-ot-shaper-hebrew.o $hbobj/hb-ot-shaper-indic-table.o $
+              $hbobj/hb-ot-shaper-indic.o $hbobj/hb-ot-shaper-khmer.o $hbobj/hb-ot-shaper-myanmar.o $hbobj/hb-ucd.o $
+              $hbobj/hb-ot-shaper-syllabic.o $hbobj/hb-ot-shaper-thai.o $hbobj/hb-ot-shaper-use.o $hbobj/hb-unicode.o $
+              $hbobj/hb-ot-shaper-vowel-constraints.o $hbobj/hb-ot-shape-fallback.o $hbobj/hb-ot-shape-normalize.o $
+              $hbobj/hb-ot-shape.o $hbobj/hb-ot-tag.o $hbobj/hb-ot-var.o $hbobj/hb-set.o $hbobj/hb-shape-plan.o $
+              $hbobj/hb-shape.o $hbobj/hb-shaper.o $hbobj/hb-static.o $hbobj/hb-style.o $
+              $lunaobj/plutovg-surface.o $lunaobj/svgtextelement.o $lunaobj/lunasvg.o $lunaobj/graphics.o $
+              $lunaobj/svggeometryelement.o $lunaobj/svgelement.o $lunaobj/svgrenderstate.o $lunaobj/svgproperty.o $
+              $lunaobj/svgparser.o $lunaobj/svgpaintelement.o $lunaobj/svglayoutstate.o $lunaobj/plutovg-canvas.o $
+              $lunaobj/plutovg-blend.o $lunaobj/plutovg-rasterize.o $lunaobj/plutovg-path.o $lunaobj/plutovg-paint.o $
+              $lunaobj/plutovg-matrix.o $lunaobj/plutovg-ft-stroker.o $lunaobj/plutovg-ft-raster.o $lunaobj/plutovg-ft-math.o $
+              $lunaobj/plutovg-font.o $
+              $imgobj/imgui_stdlib.o $imgobj/imgui_backend_gl.o $imgobj/imgui_backend.o $imgobj/imgui_widgets.o $imgobj/imgui_tables.o $imgobj/imgui_demo.o $
+              $imgobj/imgui_draw.o $imgobj/imgui.o $
+            | $glfwdir/build/src/glfw3.lib $glewdir/build/lib/libGLEW.so
 
 # BUILD ENGINE
 
-build cache/dcon_common.o : ccpp | flags/dcon_cloned
-  cmpl_src    = $dir_dcon/CommonIncludes/common_types.cpp
+build $gameobj/dcon_common.o : ccpp | $flagsdir/dcon_cloned
+  cmpl_src    = $dcondir/CommonIncludes/common_types.cpp
   cmpl_flag   = $optm_flag $dbg_flag -mavx2
-  cmpl_incl   = $com_incl
 
-build cache/frustum.o : ccpp | flags/glm_cloned
-  cmpl_src    = frustum.cpp
+build $gameobj/frustum.o : ccpp | $flagsdir/glm_cloned
+  cmpl_src    = $srcdir/frustum/frustum.cpp
   cmpl_flag   = $optm_flag $dbg_flag -mavx2
-  cmpl_incl   = $com_incl
+  cmpl_incl   = $glm_incl
 
-build cache/main.o : ccpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp data_ids.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
-  cmpl_src    = main.cpp
-  cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
 
-build cache/render_alice_ui.o : ccpp | $dir_glfw/build/src/glfw3.lib $dir_glew/build/lib/libGLEW.so flags/glm_cloned flags/imgui_cloned data.hpp data_ids.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned flags/luajit_cloned
-  cmpl_src    = from_alice_editor_main.cpp
+build $gameobj/main.o : ccpp | $glfwdir/build/src/glfw3.lib $glewdir/build/lib/libGLEW.so $flagsdir/glm_cloned $flagsdir/imgui_cloned data.hpp data_ids.hpp lua-export.hpp $flagsdir/blank_project_configured $flagsdir/onetbb_cloned $flagsdir/luajit_cloned
+  cmpl_src    = $srcdir/main.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $luaj_incl $glfw_incl $glm_incl $imgui_incl $
+                $dense_incl $gfx_incl $text_incl $filesrc_incl $data_incl $tbb_incl $state_incl $window_incl $desc_incl $sote_incl $
+                -I./$srcdir/frustum -I./$filesdir
 
-build cache/sote_functions.o : ccpp | data.hpp lua-export.hpp flags/blank_project_configured flags/onetbb_cloned
-  cmpl_src    = sote_functions.cpp
+build $gameobj/locale.o : ccpp | $flagsdir/blank_project_configured $flagsdir/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $projdir/gamestate/locale.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $dense_incl $text_incl $data_incl $tbb_incl $sote_incl
 
-build cache/read_ui_files.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
-  cmpl_src    = project_file_writing.cpp
+build $gameobj/fonts.o : ccpp | $flagsdir/blank_project_configured $flagsdir/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $projdir/text/fonts.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $dense_incl $text_incl $filesrc_incl $data_incl $tbb_incl $sote_incl
 
-build cache/locale.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
-  cmpl_src    = $dir_proj/gamestate/locale.cpp
+build $gameobj/text.o : ccpp | $flagsdir/blank_project_configured $flagsdir/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $projdir/text/text.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $dense_incl $text_incl $filesrc_incl $data_incl $tbb_incl $sote_incl
 
-build cache/text.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
-  cmpl_src    = $dir_proj/text/text.cpp
+build $gameobj/sote_functions.o : ccpp | data.hpp lua-export.hpp $flagsdir/blank_project_configured $flagsdir/onetbb_cloned
+  cmpl_src    = $sotedir/sote_functions.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $dense_incl $text_incl $data_incl $tbb_incl $sote_incl
 
-build cache/parsers.o : ccpp | flags/blank_project_cloned
-  cmpl_src    = $dir_proj/text/parsers.cpp
+build $gameobj/simple_fs.o : ccpp | $flagsdir/blank_project_configured $flagsdir/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $projdir/filesystem/simple_fs_nix.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $dense_incl $text_incl $filesrc_incl $data_incl $tbb_incl
 
-build cache/window_platform.o : ccpp | flags/blank_project_cloned flags/glfw_cloned
-  cmpl_src    = $dir_proj/window/window_nix.cpp
+build $gameobj/templates_loading.o : ccpp | $flagsdir/blank_project_configured $flagsdir/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $projdir/gamestate/uitemplate_serialization.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $dense_incl $gfx_incl $text_incl $filesrc_incl $data_incl $tbb_incl $state_incl $desc_incl
 
-build cache/text_render.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data_ids.hpp
-  cmpl_src    = $dir_proj/gui/text_render.cpp
+build $gameobj/read_ui_files.o : ccpp | $flagsdir/blank_project_configured $flagsdir/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $filesdir/project_file_writing.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $dense_incl $gfx_incl $text_incl $filesrc_incl $data_incl $tbb_incl $state_incl $desc_incl
 
-build cache/alice_ui.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
-  cmpl_src    = $dir_proj/gui/alice_ui.cpp
+build $gameobj/alice_ui.o : ccpp | $flagsdir/blank_project_configured $flagsdir/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $projdir/gui/alice_ui.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $dense_incl $gfx_incl $text_incl $filesrc_incl $data_incl $tbb_incl $state_incl $desc_incl
 
-build cache/gl_wrapper.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
-  cmpl_src    = $dir_proj/graphics/opengl_wrapper.cpp
+build $gameobj/render_alice_ui.o : ccpp | $flagsdir/blank_project_configured $flagsdir/glm_cloned $flagsdir/imgui_cloned $flagsdir/onetbb_cloned $flagsdir/luajit_cloned data.hpp data_ids.hpp lua-export.hpp $glfwdir/build/src/glfw3.lib $glewdir/build/lib/libGLEW.so
+  cmpl_src    = $filesdir/from_alice_editor_main.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $dense_incl $gfx_incl $text_incl $filesrc_incl $data_incl $tbb_incl $state_incl $window_incl $desc_incl $glm_incl
 
-build cache/asvg.o : ccpp | flags/blank_project_cloned
-  cmpl_src    = $dir_proj/graphics/asvg.cpp
+build $gameobj/text_render.o : ccpp | $flagsdir/blank_project_configured $flagsdir/glm_cloned $flagsdir/onetbb_cloned data_ids.hpp
+  cmpl_src    = $projdir/gui/text_render.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $dense_incl $gfx_incl $text_incl $filesrc_incl $data_incl $tbb_incl $state_incl $glm_incl
 
-build cache/texture.o : ccpp | flags/blank_project_cloned
-  cmpl_src    = $dir_proj/graphics/texture.cpp
+build $gameobj/texture.o : ccpp | $flagsdir/blank_project_configured
+  cmpl_src    = $projdir/graphics/texture.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $dense_incl $luna_incl $filesrc_incl $state_incl
 
-build cache/fonts.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
-  cmpl_src    = $dir_proj/text/fonts.cpp
+build $gameobj/asvg.o : ccpp | $flagsdir/blank_project_configured
+  cmpl_src    = $projdir/graphics/asvg.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
-  
-build cache/simple_fs.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
-  cmpl_src    = $dir_proj/filesystem/simple_fs_nix.cpp
+  cmpl_incl   = $dense_incl $luna_incl $filesrc_incl
+
+build $gameobj/gl_wrapper.o : ccpp | $flagsdir/blank_project_configured $flagsdir/glm_cloned $flagsdir/onetbb_cloned data.hpp data_ids.hpp
+  cmpl_src    = $projdir/graphics/opengl_wrapper.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
-  
-build cache/templates_loading.o : ccpp | flags/blank_project_configured flags/onetbb_cloned data.hpp data_ids.hpp
-  cmpl_src    = $dir_proj/gamestate/uitemplate_serialization.cpp
+  cmpl_incl   = $dense_incl $glm_incl $luna_incl $text_incl $filesrc_incl $data_incl $tbb_incl $state_incl $window_incl
+
+build $gameobj/window_platform.o : ccpp | $flagsdir/blank_project_cloned $flagsdir/glfw_cloned
+  cmpl_src    = $projdir/window/window_nix.cpp
   cmpl_flag   = $game_flag
-  cmpl_incl   = $com_incl $blank_incl
+  cmpl_incl   = $glfw_incl $types_incl $state_incl
+
+build $gameobj/parsers.o : ccpp | $flagsdir/blank_project_cloned
+  cmpl_src    = $projdir/text/parsers.cpp
+  cmpl_flag   = $game_flag
+
 
 # BUILD PROJECT
 
-build flags/blank_project_cloned : clone_blank_project
-build flags/blank_project_configured : configure_blank_project | flags/blank_project_cloned
+build $flagsdir/blank_project_cloned : clone_blank_project
+build $flagsdir/blank_project_configured : configure_blank_project | $flagsdir/blank_project_cloned
 
 # BUILD DCON
 
-build flags/dcon_cloned : clone_dcon
+build $flagsdir/dcon_cloned : clone_dcon
 #clone_check
 #  url         = https://github.com/ineveraskedforthis/DataContainer.git
-#  dir         = $dir_dcon
+#  dir         = $dcondir
 #  branch      = to_upstream
-build DCON : ccpp_link | flags/dcon_cloned
-  cmpl_src    = $dir_dcon/DataContainerGenerator/DataContainerGenerator.cpp $dir_dcon/DataContainerGenerator/parsing.cpp $
-                $dir_dcon/DataContainerGenerator/code_fragments.cpp $dir_dcon/DataContainerGenerator/query_fragments.cpp $
-                $dir_dcon/DataContainerGenerator/object_member_fragments.cpp $dir_dcon/DataContainerGenerator/serialize_fragments.cpp
+build DCON : ccpp_link | $flagsdir/dcon_cloned
+  cmpl_src    = $dcondir/DataContainerGenerator/DataContainerGenerator.cpp $dcondir/DataContainerGenerator/parsing.cpp $
+                $dcondir/DataContainerGenerator/code_fragments.cpp $dcondir/DataContainerGenerator/query_fragments.cpp $
+                $dcondir/DataContainerGenerator/object_member_fragments.cpp $dcondir/DataContainerGenerator/serialize_fragments.cpp
   cmpl_flag   = $optm_flag $dbg_flag -ferror-limit=1
-  cmpl_incl   = $dcom_incl $dcon_incl
-build flags/dcon_ran | data.hpp data_ids.hpp : run DCON data.txt DCON
+  cmpl_incl   = $dcon_incl $dense_incl
+build $flagsdir/dcon_ran | data.hpp data_ids.hpp : run DCON data.txt DCON
 
 # BUILD DCON_LUA
 
-build flags/dcon_lua_cloned : clone_dcon_lua
+build $flagsdir/dcon_lua_cloned : clone_dcon_lua
 #clone_check
 #  url         = https://github.com/ineveraskedforthis/DataContainer-Lua.git
-#  dir         = $dir_dlua
+#  dir         = $dluadir
 #  branch      = allow-creation
-build DCON_LUA : ccpp_link | flags/dcon_lua_cloned flags/dcon_cloned
-  cmpl_src    = $dir_dlua/src/LuaFFIGenerator.cpp $dir_dlua/src/parser/parsing.cpp
+build DCON_LUA : ccpp_link | $flagsdir/dcon_lua_cloned $flagsdir/dcon_cloned
+  cmpl_src    = $dluadir/src/LuaFFIGenerator.cpp $dluadir/src/parser/parsing.cpp
   cmpl_flag   = $optm_flag $dbg_flag -ferror-limit=1
-  cmpl_incl   = $dcom_incl $dcon_incl
-build flags/dcon_lua_ran | lua-export.hpp : run DCON_LUA
+  cmpl_incl   = $dcon_incl $dense_incl
+build $flagsdir/dcon_lua_ran | lua-export.hpp : run DCON_LUA
   run_args    = "sote" "state." "data.txt" "lua-export.cpp" "lua-export.hpp" "./codegen-lua"
 
 # BUILD ONETBB
 
-build flags/onetbb_cloned : clone_check
+build $flagsdir/onetbb_cloned : clone_check
   url         = https://github.com/uxlfoundation/oneTBB.git
-  dir     = $dir_tbb
-build flags/onetbb_configured : configure_onetbb | flags/onetbb_cloned
-build flags/onetbb_built : build_onetbb | flags/onetbb_configured
+  dir     = $tbbdir
+build $flagsdir/onetbb_configured : configure_onetbb | $flagsdir/onetbb_cloned
+build $flagsdir/onetbb_built : build_onetbb | $flagsdir/onetbb_configured
 
 # BUILD LUAJIT
 
-build flags/luajit_cloned : clone_check
+build $flagsdir/luajit_cloned : clone_check
   url         = https://github.com/LuaJIT/LuaJIT.git
-  dir         = $dir_luaj
-build flags/luajit_built : build_luajit | flags/luajit_cloned
+  dir         = $luajdir
+build $flagsdir/luajit_built : build_luajit | $flagsdir/luajit_cloned
 
 # BUILD GLFW
 
-build flags/glfw_cloned : clone_check
+build $flagsdir/glfw_cloned : clone_check
   url         = https://github.com/glfw/glfw.git
-  dir         = $dir_glfw
-build flags/glfw_configured : configure_glfw | flags/glfw_cloned
-build flags/glfw_built | $dir_glfw/build/src/glfw3.lib : build_glfw | flags/glfw_configured
+  dir         = $glfwdir
+build $flagsdir/glfw_configured : configure_glfw | $flagsdir/glfw_cloned
+build $flagsdir/glfw_built | $glfwdir/build/src/glfw3.lib : build_glfw | $flagsdir/glfw_configured
 
 # BUILD GLEW
 
-build flags/glew_cloned : clone_check
+build $flagsdir/glew_cloned : clone_check
   url         = https://github.com/Perlmint/glew-cmake.git
-  dir         = $dir_glew
-build flags/glew_configured : configure_glew flags/glew_cloned
-build flags/glew_built | $dir_glew/build/lib/libGLEW.so : build_glew | flags/glew_configured
+  dir         = $glewdir
+build $flagsdir/glew_configured : configure_glew $flagsdir/glew_cloned
+build $flagsdir/glew_built | $glewdir/build/lib/libGLEW.so : build_glew | $flagsdir/glew_configured
 
 # BUILD GLM
 
-build flags/glm_cloned : clone_check
+build $flagsdir/glm_cloned : clone_check
   url         = https://github.com/g-truc/glm.git
-  dir         = $dir_glm
+  dir         = $glmdir
 
 # BUILD IMGUI
 
-build flags/imgui_cloned : clone_check
+build $flagsdir/imgui_cloned : clone_check
   url         = https://github.com/ocornut/imgui.git
-  dir         = $dir_imgui
+  dir         = $imgdir
 
-build cache/imgui.o : ccpp || flags/imgui_cloned
-  cmpl_src    = $dir_imgui/imgui.cpp
+build $imgobj/imgui.o : ccpp || $flagsdir/imgui_cloned
+  cmpl_src    = $imgdir/imgui.cpp
   cmpl_flag   = $optm_flag $dbg_flag -mavx2
-  cmpl_incl   = $com_incl
-build cache/imgui_draw.o : ccpp || flags/imgui_cloned
-  cmpl_src    = $dir_imgui/imgui_draw.cpp
+  cmpl_incl   = $imgui_incl
+build $imgobj/imgui_draw.o : ccpp || $flagsdir/imgui_cloned
+  cmpl_src    = $imgdir/imgui_draw.cpp
   cmpl_flag   = $optm_flag $dbg_flag -mavx2
-  cmpl_incl   = $com_incl
-build cache/imgui_demo.o : ccpp || flags/imgui_cloned
-  cmpl_src    = $dir_imgui/imgui_demo.cpp
+  cmpl_incl   = $imgui_incl
+build $imgobj/imgui_demo.o : ccpp || $flagsdir/imgui_cloned
+  cmpl_src    = $imgdir/imgui_demo.cpp
   cmpl_flag   = $optm_flag $dbg_flag -mavx2
-  cmpl_incl   = $com_incl
-build cache/imgui_tables.o : ccpp || flags/imgui_cloned
-  cmpl_src    = $dir_imgui/imgui_tables.cpp
+  cmpl_incl   = $imgui_incl
+build $imgobj/imgui_tables.o : ccpp || $flagsdir/imgui_cloned
+  cmpl_src    = $imgdir/imgui_tables.cpp
   cmpl_flag   = $optm_flag $dbg_flag -mavx2
-  cmpl_incl   = $com_incl
-build cache/imgui_widgets.o : ccpp || flags/imgui_cloned
-  cmpl_src    = $dir_imgui/imgui_widgets.cpp
+  cmpl_incl   = $imgui_incl
+build $imgobj/imgui_widgets.o : ccpp || $flagsdir/imgui_cloned
+  cmpl_src    = $imgdir/imgui_widgets.cpp
   cmpl_flag   = $optm_flag $dbg_flag -mavx2
-  cmpl_incl   = $com_incl
-build cache/imgui_backend.o : ccpp || flags/imgui_cloned flags/glfw_cloned
-  cmpl_src    = $dir_imgui/backends/imgui_impl_glfw.cpp
+  cmpl_incl   = $imgui_incl
+build $imgobj/imgui_backend.o : ccpp || $flagsdir/imgui_cloned $flagsdir/glfw_cloned
+  cmpl_src    = $imgdir/backends/imgui_impl_glfw.cpp
   cmpl_flag   = $optm_flag $dbg_flag -mavx2
-  cmpl_incl   = $com_incl
-build cache/imgui_backend_gl.o : ccpp || flags/imgui_cloned
-  cmpl_src    = $dir_imgui/backends/imgui_impl_opengl3.cpp
+  cmpl_incl   = $imgui_incl $glfw_incl
+build $imgobj/imgui_backend_gl.o : ccpp || $flagsdir/imgui_cloned
+  cmpl_src    = $imgdir/backends/imgui_impl_opengl3.cpp
   cmpl_flag   = $optm_flag $dbg_flag -mavx2
-  cmpl_incl   = $com_incl
-build cache/imgui_stdlib.o: ccpp || flags/imgui_cloned
-  cmpl_src    = $dir_imgui/misc/cpp/imgui_stdlib.cpp
+  cmpl_incl   = $imgui_incl
+build $imgobj/imgui_stdlib.o: ccpp || $flagsdir/imgui_cloned
+  cmpl_src    = $imgdir/misc/cpp/imgui_stdlib.cpp
   cmpl_flag   = $optm_flag $dbg_flag -mavx2
-  cmpl_incl   = $com_incl
+  cmpl_incl   = $imgui_incl
 
 # BUILD LUNASVG
 
 # clone lunasvg
 
-build cache/lunasvg/graphics.o : ccpp | flags/blank_project_configured
-  cmpl_src    = $dir_svg/graphics.cpp 
+build $lunaobj/graphics.o : ccpp | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/graphics.cpp 
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/lunasvg.o : ccpp | flags/blank_project_configured
-  cmpl_src    = $dir_svg/lunasvg.cpp
+  cmpl_incl   = $luna_incl
+build $lunaobj/lunasvg.o : ccpp | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/lunasvg.cpp
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/svgelement.o : ccpp | flags/blank_project_configured
-  cmpl_src    = $dir_svg/svgelement.cpp
+  cmpl_incl   = $luna_incl
+build $lunaobj/svgelement.o : ccpp | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/svgelement.cpp
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/svggeometryelement.o : ccpp | flags/blank_project_configured
-  cmpl_src    = $dir_svg/svggeometryelement.cpp
+  cmpl_incl   = $luna_incl
+build $lunaobj/svggeometryelement.o : ccpp | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/svggeometryelement.cpp
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/svglayoutstate.o : ccpp | flags/blank_project_configured
-  cmpl_src    = $dir_svg/svglayoutstate.cpp
+  cmpl_incl   = $luna_incl
+build $lunaobj/svglayoutstate.o : ccpp | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/svglayoutstate.cpp
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/svgpaintelement.o : ccpp | flags/blank_project_configured
-  cmpl_src    = $dir_svg/svgpaintelement.cpp
+  cmpl_incl   = $luna_incl
+build $lunaobj/svgpaintelement.o : ccpp | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/svgpaintelement.cpp
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/svgparser.o : ccpp | flags/blank_project_configured
-  cmpl_src    = $dir_svg/svgparser.cpp
+  cmpl_incl   = $luna_incl
+build $lunaobj/svgparser.o : ccpp | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/svgparser.cpp
   cmpl_flag   = $optm_flag $dbg_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/svgproperty.o : ccpp | flags/blank_project_configured
-  cmpl_src    = $dir_svg/svgproperty.cpp
+  cmpl_incl   = $luna_incl
+build $lunaobj/svgproperty.o : ccpp | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/svgproperty.cpp
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/svgrenderstate.o : ccpp | flags/blank_project_configured
-  cmpl_src    = $dir_svg/svgrenderstate.cpp
+  cmpl_incl   = $luna_incl
+build $lunaobj/svgrenderstate.o : ccpp | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/svgrenderstate.cpp
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/svgtextelement.o : ccpp | flags/blank_project_configured
-  cmpl_src    = $dir_svg/svgtextelement.cpp
+  cmpl_incl   = $luna_incl
+build $lunaobj/svgtextelement.o : ccpp | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/svgtextelement.cpp
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
+  cmpl_incl   = $luna_incl
 
-build cache/lunasvg/plutovg-blend.o : cc | flags/blank_project_configured
-  cmpl_src    = $dir_svg/plutovg-blend.c
+build $lunaobj/plutovg-blend.o : cc | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/plutovg-blend.c
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/plutovg-canvas.o : cc | flags/blank_project_configured
-  cmpl_src    = $dir_svg/plutovg-canvas.c
+  cmpl_incl   = $luna_incl
+build $lunaobj/plutovg-canvas.o : cc | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/plutovg-canvas.c
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/plutovg-font.o : cc | flags/blank_project_configured
-  cmpl_src    = $dir_svg/plutovg-font.c
+  cmpl_incl   = $luna_incl
+build $lunaobj/plutovg-font.o : cc | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/plutovg-font.c
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/plutovg-ft-math.o : cc | flags/blank_project_configured
-  cmpl_src    = $dir_svg/plutovg-ft-math.c
+  cmpl_incl   = $luna_incl
+build $lunaobj/plutovg-ft-math.o : cc | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/plutovg-ft-math.c
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/plutovg-ft-raster.o : cc | flags/blank_project_configured
-  cmpl_src    = $dir_svg/plutovg-ft-raster.c
+  cmpl_incl   = $luna_incl
+build $lunaobj/plutovg-ft-raster.o : cc | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/plutovg-ft-raster.c
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/plutovg-ft-stroker.o : cc | flags/blank_project_configured
-  cmpl_src    = $dir_svg/plutovg-ft-stroker.c
+  cmpl_incl   = $luna_incl
+build $lunaobj/plutovg-ft-stroker.o : cc | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/plutovg-ft-stroker.c
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/plutovg-matrix.o : cc | flags/blank_project_configured
-  cmpl_src    = $dir_svg/plutovg-matrix.c
+  cmpl_incl   = $luna_incl
+build $lunaobj/plutovg-matrix.o : cc | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/plutovg-matrix.c
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/plutovg-paint.o : cc | flags/blank_project_configured
-  cmpl_src    = $dir_svg/plutovg-paint.c
+  cmpl_incl   = $luna_incl
+build $lunaobj/plutovg-paint.o : cc | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/plutovg-paint.c
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/plutovg-path.o : cc | flags/blank_project_configured
-  cmpl_src    = $dir_svg/plutovg-path.c
+  cmpl_incl   = $luna_incl
+build $lunaobj/plutovg-path.o : cc | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/plutovg-path.c
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/plutovg-rasterize.o : cc | flags/blank_project_configured
-  cmpl_src    = $dir_svg/plutovg-rasterize.c
+  cmpl_incl   = $luna_incl
+build $lunaobj/plutovg-rasterize.o : cc | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/plutovg-rasterize.c
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
-build cache/lunasvg/plutovg-surface.o : cc | flags/blank_project_configured
-  cmpl_src    = $dir_svg/plutovg-surface.c
+  cmpl_incl   = $luna_incl
+build $lunaobj/plutovg-surface.o : cc | $flagsdir/blank_project_configured
+  cmpl_src    = $lunadir/plutovg-surface.c
   cmpl_flag   = $luna_flag
-  cmpl_incl   = $com_incl $luna_incl
+  cmpl_incl   = $luna_incl
 
 # BUILD FREETYPE
 
@@ -495,44 +529,44 @@ build cache/lunasvg/plutovg-surface.o : cc | flags/blank_project_configured
 #  $optm_flag $dbg_flag $ft_flag
 #  $ft_incl -I.
 
-build $dir_ft/src/base/ftsystem.c : phony flags/blank_project_configured
-build cache/ftsystem.o : cc_freetype $dir_ft/src/base/ftsystem.c | ftmodule.h
-build $dir_ft/src/base/ftinit.c : phony flags/blank_project_configured
-build cache/ftinit.o : cc_freetype $dir_ft/src/base/ftinit.c | ftmodule.h
-build $dir_ft/src/base/ftdebug.c : phony flags/blank_project_configured
-build cache/ftdebug.o : cc_freetype $dir_ft/src/base/ftdebug.c | ftmodule.h
-build $dir_ft/src/base/ftbase.c : phony flags/blank_project_configured
-build cache/ftbase.o : cc_freetype $dir_ft/src/base/ftbase.c | ftmodule.h
-build $dir_ft/src/base/ftbbox.c : phony flags/blank_project_configured
-build cache/ftbbox.o : cc_freetype $dir_ft/src/base/ftbbox.c | ftmodule.h
-build $dir_ft/src/base/ftglyph.c : phony flags/blank_project_configured
-build cache/ftglyph.o : cc_freetype $dir_ft/src/base/ftglyph.c | ftmodule.h
-build $dir_ft/src/truetype/truetype.c : phony flags/blank_project_configured
-build cache/src/truetype/truetype.o  : cc_freetype $dir_ft/src/truetype/truetype.c | ftmodule.h
-build $dir_ft/src/base/ftbitmap.c : phony flags/blank_project_configured
-build cache/ftbitmap.o : cc_freetype $dir_ft/src/base/ftbitmap.c | ftmodule.h
-build $dir_ft/src/svg/ftsvg.c : phony flags/blank_project_configured
-build cache/ftsvg.o : cc_freetype $dir_ft/src/svg/ftsvg.c | ftmodule.h
-build $dir_ft/src/base/ftmm.c : phony flags/blank_project_configured
-build cache/ftmm.o : cc_freetype $dir_ft/src/base/ftmm.c | ftmodule.h
-build $dir_ft/src/autofit/ft-hb.c : phony flags/blank_project_configured
-build cache/ft-hb.o : cc_freetype $dir_ft/src/autofit/ft-hb.c | ftmodule.h
-build $dir_ft/src/autofit/ft-hb-ft.c : phony flags/blank_project_configured
-build cache/ft-hb-ft.o : cc_freetype $dir_ft/src/autofit/ft-hb-ft.c | ftmodule.h
-build $dir_ft/src/cff/cff.c : phony flags/blank_project_configured
-build cache/cff/cff.o : cc_freetype $dir_ft/src/cff/cff.c | ftmodule.h
-build $dir_ft/src/sfnt/sfnt.c : phony flags/blank_project_configured
-build  cache/sfnt/sfnt.o : cc_freetype $dir_ft/src/sfnt/sfnt.c | ftmodule.h
-build $dir_ft/src/gzip/ftgzip.c : phony flags/blank_project_configured
-build cache/gzip/ftgzip.o : cc_freetype $dir_ft/src/gzip/ftgzip.c
-build $dir_ft/src/psnames/psnames.c : phony flags/blank_project_configured
-build cache/psnames/psnames.o : cc_freetype $dir_ft/src/psnames/psnames.c
-build $dir_ft/src/smooth/smooth.c : phony flags/blank_project_configured
-build cache/smooth/smooth.o : cc_freetype $dir_ft/src/smooth/smooth.c | ftmodule.h
-build $dir_ft/src/raster/raster.c : phony flags/blank_project_configured
-build cache/raster/raster.o : cc_freetype $dir_ft/src/raster/raster.c | ftmodule.h
-build $dir_ft/src/sdf/sdf.c : phony flags/blank_project_configured
-build cache/sdf/sdf.o : cc_freetype $dir_ft/src/sdf/sdf.c | ftmodule.h
+build $ftdir/src/base/ftsystem.c : phony $flagsdir/blank_project_configured
+build $ftobj/ftsystem.o : cc_freetype $ftdir/src/base/ftsystem.c | $ftmdir/ftmodule.h
+build $ftdir/src/base/ftinit.c : phony $flagsdir/blank_project_configured
+build $ftobj/ftinit.o : cc_freetype $ftdir/src/base/ftinit.c | $ftmdir/ftmodule.h
+build $ftdir/src/base/ftdebug.c : phony $flagsdir/blank_project_configured
+build $ftobj/ftdebug.o : cc_freetype $ftdir/src/base/ftdebug.c | $ftmdir/ftmodule.h
+build $ftdir/src/base/ftbase.c : phony $flagsdir/blank_project_configured
+build $ftobj/ftbase.o : cc_freetype $ftdir/src/base/ftbase.c | $ftmdir/ftmodule.h
+build $ftdir/src/base/ftbbox.c : phony $flagsdir/blank_project_configured
+build $ftobj/ftbbox.o : cc_freetype $ftdir/src/base/ftbbox.c | $ftmdir/ftmodule.h
+build $ftdir/src/base/ftglyph.c : phony $flagsdir/blank_project_configured
+build $ftobj/ftglyph.o : cc_freetype $ftdir/src/base/ftglyph.c | $ftmdir/ftmodule.h
+build $ftdir/src/truetype/truetype.c : phony $flagsdir/blank_project_configured
+build $ftobj/src/truetype/truetype.o  : cc_freetype $ftdir/src/truetype/truetype.c | $ftmdir/ftmodule.h
+build $ftdir/src/base/ftbitmap.c : phony $flagsdir/blank_project_configured
+build $ftobj/ftbitmap.o : cc_freetype $ftdir/src/base/ftbitmap.c | $ftmdir/ftmodule.h
+build $ftdir/src/svg/ftsvg.c : phony $flagsdir/blank_project_configured
+build $ftobj/ftsvg.o : cc_freetype $ftdir/src/svg/ftsvg.c | $ftmdir/ftmodule.h
+build $ftdir/src/base/ftmm.c : phony $flagsdir/blank_project_configured
+build $ftobj/ftmm.o : cc_freetype $ftdir/src/base/ftmm.c | $ftmdir/ftmodule.h
+build $ftdir/src/autofit/ft-hb.c : phony $flagsdir/blank_project_configured
+build $ftobj/ft-hb.o : cc_freetype $ftdir/src/autofit/ft-hb.c | $ftmdir/ftmodule.h
+build $ftdir/src/autofit/ft-hb-ft.c : phony $flagsdir/blank_project_configured
+build $ftobj/ft-hb-ft.o : cc_freetype $ftdir/src/autofit/ft-hb-ft.c | $ftmdir/ftmodule.h
+build $ftdir/src/cff/cff.c : phony $flagsdir/blank_project_configured
+build $ftobj/cff/cff.o : cc_freetype $ftdir/src/cff/cff.c | $ftmdir/ftmodule.h
+build $ftdir/src/sfnt/sfnt.c : phony $flagsdir/blank_project_configured
+build $ftobj/sfnt/sfnt.o : cc_freetype $ftdir/src/sfnt/sfnt.c | $ftmdir/ftmodule.h
+build $ftdir/src/gzip/ftgzip.c : phony $flagsdir/blank_project_configured
+build $ftobj/gzip/ftgzip.o : cc_freetype $ftdir/src/gzip/ftgzip.c
+build $ftdir/src/psnames/psnames.c : phony $flagsdir/blank_project_configured
+build $ftobj/psnames/psnames.o : cc_freetype $ftdir/src/psnames/psnames.c
+build $ftdir/src/smooth/smooth.c : phony $flagsdir/blank_project_configured
+build $ftobj/smooth/smooth.o : cc_freetype $ftdir/src/smooth/smooth.c | $ftmdir/ftmodule.h
+build $ftdir/src/raster/raster.c : phony $flagsdir/blank_project_configured
+build $ftobj/raster/raster.o : cc_freetype $ftdir/src/raster/raster.c | $ftmdir/ftmodule.h
+build $ftdir/src/sdf/sdf.c : phony $flagsdir/blank_project_configured
+build $ftobj/sdf/sdf.o : cc_freetype $ftdir/src/sdf/sdf.c | $ftmdir/ftmodule.h
 
 # BUILD HARFBUZZ
 
@@ -541,115 +575,115 @@ build cache/sdf/sdf.o : cc_freetype $dir_ft/src/sdf/sdf.c | ftmodule.h
 #  $hb_flag
 #  $hb_incl $ft_incl
 
-build $dir_hb/src/hb-aat-layout.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-aat-map.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-blob.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-buffer-serialize.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-buffer-verify.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-buffer.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-common.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-draw.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-paint.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-paint-extents.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-face.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-face-builder.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-fallback-shape.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-font.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-map.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-number.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-cff1-table.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-cff2-table.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-color.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-face.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-font.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-outline.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-layout.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-map.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-math.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-meta.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-metrics.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-name.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shaper-arabic.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shaper-default.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shaper-hangul.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shaper-hebrew.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shaper-indic-table.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shaper-indic.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shaper-khmer.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shaper-myanmar.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shaper-syllabic.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shaper-thai.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shaper-use.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shaper-vowel-constraints.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shape-fallback.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shape-normalize.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-shape.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-tag.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ot-var.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-set.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-shape-plan.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-shape.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-shaper.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-static.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-style.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ucd.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-unicode.cc : phony flags/blank_project_configured
-build $dir_hb/src/hb-ft.cc : phony flags/blank_project_configured
+build $hbdir/src/hb-aat-layout.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-aat-map.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-blob.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-buffer-serialize.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-buffer-verify.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-buffer.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-common.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-draw.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-paint.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-paint-extents.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-face.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-face-builder.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-fallback-shape.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-font.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-map.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-number.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-cff1-table.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-cff2-table.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-color.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-face.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-font.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-outline.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-layout.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-map.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-math.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-meta.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-metrics.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-name.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shaper-arabic.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shaper-default.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shaper-hangul.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shaper-hebrew.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shaper-indic-table.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shaper-indic.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shaper-khmer.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shaper-myanmar.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shaper-syllabic.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shaper-thai.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shaper-use.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shaper-vowel-constraints.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shape-fallback.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shape-normalize.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-shape.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-tag.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ot-var.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-set.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-shape-plan.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-shape.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-shaper.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-static.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-style.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ucd.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-unicode.cc : phony $flagsdir/blank_project_configured
+build $hbdir/src/hb-ft.cc : phony $flagsdir/blank_project_configured
 
-build cache/hb-aat-layout.o : ccpp_harfbuzz $dir_hb/src/hb-aat-layout.cc
-build cache/hb-aat-map.o : ccpp_harfbuzz $dir_hb/src/hb-aat-map.cc
-build cache/hb-blob.o : ccpp_harfbuzz $dir_hb/src/hb-blob.cc
-build cache/hb-buffer-serialize.o : ccpp_harfbuzz $dir_hb/src/hb-buffer-serialize.cc
-build cache/hb-buffer-verify.o : ccpp_harfbuzz $dir_hb/src/hb-buffer-verify.cc
-build cache/hb-buffer.o : ccpp_harfbuzz $dir_hb/src/hb-buffer.cc
-build cache/hb-common.o : ccpp_harfbuzz $dir_hb/src/hb-common.cc
-build cache/hb-draw.o : ccpp_harfbuzz $dir_hb/src/hb-draw.cc
-build cache/hb-paint.o : ccpp_harfbuzz $dir_hb/src/hb-paint.cc
-build cache/hb-paint-extents.o : ccpp_harfbuzz $dir_hb/src/hb-paint-extents.cc
-build cache/hb-face.o : ccpp_harfbuzz $dir_hb/src/hb-face.cc
-build cache/hb-face-builder.o : ccpp_harfbuzz $dir_hb/src/hb-face-builder.cc
-build cache/hb-fallback-shape.o : ccpp_harfbuzz $dir_hb/src/hb-fallback-shape.cc
-build cache/hb-font.o : ccpp_harfbuzz $dir_hb/src/hb-font.cc
-build cache/hb-map.o : ccpp_harfbuzz $dir_hb/src/hb-map.cc
-build cache/hb-number.o : ccpp_harfbuzz $dir_hb/src/hb-number.cc
-build cache/hb-ot-cff1-table.o : ccpp_harfbuzz $dir_hb/src/hb-ot-cff1-table.cc
-build cache/hb-ot-cff2-table.o : ccpp_harfbuzz $dir_hb/src/hb-ot-cff2-table.cc
-build cache/hb-ot-color.o : ccpp_harfbuzz $dir_hb/src/hb-ot-color.cc
-build cache/hb-ot-face.o : ccpp_harfbuzz $dir_hb/src/hb-ot-face.cc
-build cache/hb-ot-font.o : ccpp_harfbuzz $dir_hb/src/hb-ot-font.cc
-build cache/hb-outline.o : ccpp_harfbuzz $dir_hb/src/hb-outline.cc
-build cache/hb-ot-layout.o : ccpp_harfbuzz $dir_hb/src/hb-ot-layout.cc
-build cache/hb-ot-map.o : ccpp_harfbuzz $dir_hb/src/hb-ot-map.cc
-build cache/hb-ot-math.o : ccpp_harfbuzz $dir_hb/src/hb-ot-math.cc
-build cache/hb-ot-meta.o : ccpp_harfbuzz $dir_hb/src/hb-ot-meta.cc
-build cache/hb-ot-metrics.o : ccpp_harfbuzz $dir_hb/src/hb-ot-metrics.cc
-build cache/hb-ot-name.o : ccpp_harfbuzz $dir_hb/src/hb-ot-name.cc
-build cache/hb-ot-shaper-arabic.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shaper-arabic.cc
-build cache/hb-ot-shaper-default.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shaper-default.cc
-build cache/hb-ot-shaper-hangul.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shaper-hangul.cc
-build cache/hb-ot-shaper-hebrew.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shaper-hebrew.cc
-build cache/hb-ot-shaper-indic-table.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shaper-indic-table.cc
-build cache/hb-ot-shaper-indic.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shaper-indic.cc
-build cache/hb-ot-shaper-khmer.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shaper-khmer.cc
-build cache/hb-ot-shaper-myanmar.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shaper-myanmar.cc
-build cache/hb-ot-shaper-syllabic.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shaper-syllabic.cc
-build cache/hb-ot-shaper-thai.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shaper-thai.cc
-build cache/hb-ot-shaper-use.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shaper-use.cc
-build cache/hb-ot-shaper-vowel-constraints.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shaper-vowel-constraints.cc
-build cache/hb-ot-shape-fallback.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shape-fallback.cc
-build cache/hb-ot-shape-normalize.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shape-normalize.cc
-build cache/hb-ot-shape.o : ccpp_harfbuzz $dir_hb/src/hb-ot-shape.cc
-build cache/hb-ot-tag.o : ccpp_harfbuzz $dir_hb/src/hb-ot-tag.cc
-build cache/hb-ot-var.o : ccpp_harfbuzz $dir_hb/src/hb-ot-var.cc
-build cache/hb-set.o : ccpp_harfbuzz $dir_hb/src/hb-set.cc
-build cache/hb-shape-plan.o : ccpp_harfbuzz $dir_hb/src/hb-shape-plan.cc
-build cache/hb-shape.o : ccpp_harfbuzz $dir_hb/src/hb-shape.cc
-build cache/hb-shaper.o : ccpp_harfbuzz $dir_hb/src/hb-shaper.cc
-build cache/hb-static.o : ccpp_harfbuzz $dir_hb/src/hb-static.cc
-build cache/hb-style.o : ccpp_harfbuzz $dir_hb/src/hb-style.cc
-build cache/hb-ucd.o : ccpp_harfbuzz $dir_hb/src/hb-ucd.cc
-build cache/hb-unicode.o : ccpp_harfbuzz $dir_hb/src/hb-unicode.cc
+build $hbobj/hb-aat-layout.o : ccpp_harfbuzz $hbdir/src/hb-aat-layout.cc
+build $hbobj/hb-aat-map.o : ccpp_harfbuzz $hbdir/src/hb-aat-map.cc
+build $hbobj/hb-blob.o : ccpp_harfbuzz $hbdir/src/hb-blob.cc
+build $hbobj/hb-buffer-serialize.o : ccpp_harfbuzz $hbdir/src/hb-buffer-serialize.cc
+build $hbobj/hb-buffer-verify.o : ccpp_harfbuzz $hbdir/src/hb-buffer-verify.cc
+build $hbobj/hb-buffer.o : ccpp_harfbuzz $hbdir/src/hb-buffer.cc
+build $hbobj/hb-common.o : ccpp_harfbuzz $hbdir/src/hb-common.cc
+build $hbobj/hb-draw.o : ccpp_harfbuzz $hbdir/src/hb-draw.cc
+build $hbobj/hb-paint.o : ccpp_harfbuzz $hbdir/src/hb-paint.cc
+build $hbobj/hb-paint-extents.o : ccpp_harfbuzz $hbdir/src/hb-paint-extents.cc
+build $hbobj/hb-face.o : ccpp_harfbuzz $hbdir/src/hb-face.cc
+build $hbobj/hb-face-builder.o : ccpp_harfbuzz $hbdir/src/hb-face-builder.cc
+build $hbobj/hb-fallback-shape.o : ccpp_harfbuzz $hbdir/src/hb-fallback-shape.cc
+build $hbobj/hb-font.o : ccpp_harfbuzz $hbdir/src/hb-font.cc
+build $hbobj/hb-map.o : ccpp_harfbuzz $hbdir/src/hb-map.cc
+build $hbobj/hb-number.o : ccpp_harfbuzz $hbdir/src/hb-number.cc
+build $hbobj/hb-ot-cff1-table.o : ccpp_harfbuzz $hbdir/src/hb-ot-cff1-table.cc
+build $hbobj/hb-ot-cff2-table.o : ccpp_harfbuzz $hbdir/src/hb-ot-cff2-table.cc
+build $hbobj/hb-ot-color.o : ccpp_harfbuzz $hbdir/src/hb-ot-color.cc
+build $hbobj/hb-ot-face.o : ccpp_harfbuzz $hbdir/src/hb-ot-face.cc
+build $hbobj/hb-ot-font.o : ccpp_harfbuzz $hbdir/src/hb-ot-font.cc
+build $hbobj/hb-outline.o : ccpp_harfbuzz $hbdir/src/hb-outline.cc
+build $hbobj/hb-ot-layout.o : ccpp_harfbuzz $hbdir/src/hb-ot-layout.cc
+build $hbobj/hb-ot-map.o : ccpp_harfbuzz $hbdir/src/hb-ot-map.cc
+build $hbobj/hb-ot-math.o : ccpp_harfbuzz $hbdir/src/hb-ot-math.cc
+build $hbobj/hb-ot-meta.o : ccpp_harfbuzz $hbdir/src/hb-ot-meta.cc
+build $hbobj/hb-ot-metrics.o : ccpp_harfbuzz $hbdir/src/hb-ot-metrics.cc
+build $hbobj/hb-ot-name.o : ccpp_harfbuzz $hbdir/src/hb-ot-name.cc
+build $hbobj/hb-ot-shaper-arabic.o : ccpp_harfbuzz $hbdir/src/hb-ot-shaper-arabic.cc
+build $hbobj/hb-ot-shaper-default.o : ccpp_harfbuzz $hbdir/src/hb-ot-shaper-default.cc
+build $hbobj/hb-ot-shaper-hangul.o : ccpp_harfbuzz $hbdir/src/hb-ot-shaper-hangul.cc
+build $hbobj/hb-ot-shaper-hebrew.o : ccpp_harfbuzz $hbdir/src/hb-ot-shaper-hebrew.cc
+build $hbobj/hb-ot-shaper-indic-table.o : ccpp_harfbuzz $hbdir/src/hb-ot-shaper-indic-table.cc
+build $hbobj/hb-ot-shaper-indic.o : ccpp_harfbuzz $hbdir/src/hb-ot-shaper-indic.cc
+build $hbobj/hb-ot-shaper-khmer.o : ccpp_harfbuzz $hbdir/src/hb-ot-shaper-khmer.cc
+build $hbobj/hb-ot-shaper-myanmar.o : ccpp_harfbuzz $hbdir/src/hb-ot-shaper-myanmar.cc
+build $hbobj/hb-ot-shaper-syllabic.o : ccpp_harfbuzz $hbdir/src/hb-ot-shaper-syllabic.cc
+build $hbobj/hb-ot-shaper-thai.o : ccpp_harfbuzz $hbdir/src/hb-ot-shaper-thai.cc
+build $hbobj/hb-ot-shaper-use.o : ccpp_harfbuzz $hbdir/src/hb-ot-shaper-use.cc
+build $hbobj/hb-ot-shaper-vowel-constraints.o : ccpp_harfbuzz $hbdir/src/hb-ot-shaper-vowel-constraints.cc
+build $hbobj/hb-ot-shape-fallback.o : ccpp_harfbuzz $hbdir/src/hb-ot-shape-fallback.cc
+build $hbobj/hb-ot-shape-normalize.o : ccpp_harfbuzz $hbdir/src/hb-ot-shape-normalize.cc
+build $hbobj/hb-ot-shape.o : ccpp_harfbuzz $hbdir/src/hb-ot-shape.cc
+build $hbobj/hb-ot-tag.o : ccpp_harfbuzz $hbdir/src/hb-ot-tag.cc
+build $hbobj/hb-ot-var.o : ccpp_harfbuzz $hbdir/src/hb-ot-var.cc
+build $hbobj/hb-set.o : ccpp_harfbuzz $hbdir/src/hb-set.cc
+build $hbobj/hb-shape-plan.o : ccpp_harfbuzz $hbdir/src/hb-shape-plan.cc
+build $hbobj/hb-shape.o : ccpp_harfbuzz $hbdir/src/hb-shape.cc
+build $hbobj/hb-shaper.o : ccpp_harfbuzz $hbdir/src/hb-shaper.cc
+build $hbobj/hb-static.o : ccpp_harfbuzz $hbdir/src/hb-static.cc
+build $hbobj/hb-style.o : ccpp_harfbuzz $hbdir/src/hb-style.cc
+build $hbobj/hb-ucd.o : ccpp_harfbuzz $hbdir/src/hb-ucd.cc
+build $hbobj/hb-unicode.o : ccpp_harfbuzz $hbdir/src/hb-unicode.cc
 
-build cache/hb-ft.o : ccpp_harfbuzz $dir_hb/src/hb-ft.cc
+build $hbobj/hb-ft.o : ccpp_harfbuzz $hbdir/src/hb-ft.cc
 
 
