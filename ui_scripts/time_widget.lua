@@ -12,34 +12,58 @@ ffi.cdef[[
 	int64_t get_year();
 ]]
 
+--@HDR
+
 UI_LOGIC.time_widget = {}
 UI_LOGIC.time_widget.main = {}
 UI_LOGIC.time_widget.main.decrease = {}
-UI_LOGIC.time_widget.main.increase = {}
 UI_LOGIC.time_widget.main.current = {}
-UI_LOGIC.time_widget.main.turbo = {}
-UI_LOGIC.time_widget.main.run = {}
+UI_LOGIC.time_widget.main.increase = {}
 UI_LOGIC.time_widget.main.date = {}
 UI_LOGIC.time_widget.main.time = {}
+UI_LOGIC.time_widget.main.turbo = {}
+UI_LOGIC.time_widget.main.run = {}
 
-function UI_LOGIC.time_widget.main.date.text()
-	local time = string.format("YMD %d,%d,%d", tonumber(ffi.C.get_year()), tonumber(ffi.C.get_month()), tonumber(ffi.C.get_day()))
-	return time
-end
 
-function UI_LOGIC.time_widget.main.time.text()
-	local time = string.format("%02d:%02d:%02d", tonumber(ffi.C.get_hour()), tonumber(ffi.C.get_minute()), tonumber(ffi.C.get_second()))
-	return time
+function UI_LOGIC.time_widget.main.decrease.left_click()
+--@<UI_LOGIC.time_widget.main.decrease.left_click!
+	ffi.C.dec_current_game_speed()
+--@>
 end
 
 function UI_LOGIC.time_widget.main.current.text()
+--@<UI_LOGIC.time_widget.main.current.text!
 	return tostring(ffi.C.get_current_game_speed())
+--@>
 end
 
 function UI_LOGIC.time_widget.main.increase.left_click()
+--@<UI_LOGIC.time_widget.main.increase.left_click!
 	ffi.C.inc_current_game_speed()
+--@>
 end
 
-function UI_LOGIC.time_widget.main.decrease.left_click()
-	ffi.C.dec_current_game_speed()
+function UI_LOGIC.time_widget.main.date.text()
+--@<UI_LOGIC.time_widget.main.date.text!
+	local time = string.format("YMD %d,%d,%d", tonumber(ffi.C.get_year()), tonumber(ffi.C.get_month()), tonumber(ffi.C.get_day()))
+	return time
+--@>
 end
+
+function UI_LOGIC.time_widget.main.time.text()
+--@<UI_LOGIC.time_widget.main.time.text!
+	local time = string.format("%02d:%02d:%02d", tonumber(ffi.C.get_hour()), tonumber(ffi.C.get_minute()), tonumber(ffi.C.get_second()))
+	return time
+--@>
+end
+
+function UI_LOGIC.time_widget.main.turbo.left_click()
+--@<UI_LOGIC.time_widget.main.turbo.left_click!
+--@>
+end
+
+function UI_LOGIC.time_widget.main.run.left_click()
+--@<UI_LOGIC.time_widget.main.run.left_click!
+--@>
+end
+

@@ -10,7 +10,8 @@ blank_includes = -I./BlankProject/src -I./BlankProject/src/gamestate -I./BlankPr
 
 lunasvg_includes = -I./BlankProject/src/lunasvg -I./stb_image
 
-includes = -I./ -I./glfw/include -I./glew-cmake/include -I./imgui -I./glm $dcon_includes_common -I./LuaJIT/src
+includes = -I./ -I./glfw/include -I./glew-cmake/include -I./imgui -I./glm $dcon_includes_common -I./LuaJIT/src -I./source/ftmodule -I./source/project_description -I./source/sote -I./source/stb_image -I./source/frustum -I./source/filesystem
+
 libs = -l./glfw/build/src/glfw3 -l./glew-cmake/build/lib/libglew32d -lUser32.lib -lShell32 -lGdi32 -lopengl32 -l./LuaJIT/src/lua51 -lOle32 -licu -lAdvapi32
 
 rule ccpp_game
@@ -34,7 +35,7 @@ rule ccpp
   description = compile $out
   depfile = $out.d
 
-freetype_includes = -I./BlankProject/build/_deps/freetype-src/include
+freetype_includes = -I./BlankProject/build/_deps/freetype-src/include  -I./source/ftmodule
 
 rule cc_freetype
   command = $c_compiler $optimisation_flag $debug_flags -D_CRT_SECURE_NO_WARNINGS -DFT2_BUILD_LIBRARY -DFT_DISABLE_ZLIB=FALSE -DFT_DISABLE_BZIP2=TRUE -DFT_DISABLE_PNG=TRUE -DFT_DISABLE_BROTLI=TRUE -DFT_CONFIG_OPTION_USE_HARFBUZZ=TRUE -DFT_DISABLE_HARFBUZZ=FALSE -DHARFBUZZ_FOUND=TRUE -DFT_CONFIG_MODULES_H=<ftmodule.h> -I. -MD -MF $out.d $freetype_includes -c $in -o $out
@@ -65,28 +66,28 @@ build BlankProject/build/_deps/freetype-src/src/sfnt/sfnt.c : phony flags/blank_
 #build BlankProject/build/_deps/freetype-src/src/type42/type42.c : phony flags/blank_project_configured
 #build BlankProject/build/_deps/freetype-src/src/winfonts/winfnt.c : phony flags/blank_project_configured
 
-build cache/ft-hb.o : cc_freetype BlankProject/build/_deps/freetype-src/src/autofit/ft-hb.c | ftmodule.h
-build cache/ft-hb-ft.o : cc_freetype BlankProject/build/_deps/freetype-src/src/autofit/ft-hb-ft.c | ftmodule.h
-build cache/ftbitmap.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftbitmap.c | ftmodule.h
-build cache/ftmm.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftmm.c | ftmodule.h
-build cache/ftsystem.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftsystem.c | ftmodule.h
-build cache/ftinit.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftinit.c | ftmodule.h
-build cache/ftdebug.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftdebug.c | ftmodule.h
-build cache/ftbase.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftbase.c | ftmodule.h
-build cache/ftbbox.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftbbox.c | ftmodule.h
-build cache/ftglyph.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftglyph.c | ftmodule.h
-build cache/ftsvg.o : cc_freetype BlankProject/build/_deps/freetype-src/src/svg/ftsvg.c | ftmodule.h
+build cache/ft-hb.o : cc_freetype BlankProject/build/_deps/freetype-src/src/autofit/ft-hb.c | source/ftmodule/ftmodule.h
+build cache/ft-hb-ft.o : cc_freetype BlankProject/build/_deps/freetype-src/src/autofit/ft-hb-ft.c | source/ftmodule/ftmodule.h
+build cache/ftbitmap.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftbitmap.c | source/ftmodule/ftmodule.h
+build cache/ftmm.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftmm.c | source/ftmodule/ftmodule.h
+build cache/ftsystem.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftsystem.c | source/ftmodule/ftmodule.h
+build cache/ftinit.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftinit.c | source/ftmodule/ftmodule.h
+build cache/ftdebug.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftdebug.c | source/ftmodule/ftmodule.h
+build cache/ftbase.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftbase.c | source/ftmodule/ftmodule.h
+build cache/ftbbox.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftbbox.c | source/ftmodule/ftmodule.h
+build cache/ftglyph.o : cc_freetype BlankProject/build/_deps/freetype-src/src/base/ftglyph.c | source/ftmodule/ftmodule.h
+build cache/ftsvg.o : cc_freetype BlankProject/build/_deps/freetype-src/src/svg/ftsvg.c | source/ftmodule/ftmodule.h
 
-#build cache/bdf/bdf.o : cc_freetype BlankProject/build/_deps/freetype-src/src/bdf/bdf.c | ftmodule.h
-build cache/cff/cff.o : cc_freetype BlankProject/build/_deps/freetype-src/src/cff/cff.c | ftmodule.h
-#build cache/cid/type1cid.o : cc_freetype BlankProject/build/_deps/freetype-src/src/cid/type1cid.c | ftmodule.h
-#build cache/pcf/pcf.o : cc_freetype BlankProject/build/_deps/freetype-src/src/pcf/pcf.c | ftmodule.h
-#build cache/pfr/pfr.o : cc_freetype BlankProject/build/_deps/freetype-src/src/pfr/pfr.c | ftmodule.h
-build  cache/sfnt/sfnt.o : cc_freetype BlankProject/build/_deps/freetype-src/src/sfnt/sfnt.c | ftmodule.h
-build cache/src/truetype/truetype.o  : cc_freetype BlankProject/build/_deps/freetype-src/src/truetype/truetype.c | ftmodule.h
-#build cache/type1/type1.o  : cc_freetype BlankProject/build/_deps/freetype-src/src/type1/type1.c | ftmodule.h
-#build cache/type42/type42.o  : cc_freetype BlankProject/build/_deps/freetype-src/src/type42/type42.c | ftmodule.h
-#build cache/winfonts/winfnt.o  : cc_freetype BlankProject/build/_deps/freetype-src/src/winfonts/winfnt.c | ftmodule.h
+#build cache/bdf/bdf.o : cc_freetype BlankProject/build/_deps/freetype-src/src/bdf/bdf.c | source/ftmodule/ftmodule.h
+build cache/cff/cff.o : cc_freetype BlankProject/build/_deps/freetype-src/src/cff/cff.c | source/ftmodule/ftmodule.h
+#build cache/cid/type1cid.o : cc_freetype BlankProject/build/_deps/freetype-src/src/cid/type1cid.c | source/ftmodule/ftmodule.h
+#build cache/pcf/pcf.o : cc_freetype BlankProject/build/_deps/freetype-src/src/pcf/pcf.c | source/ftmodule/ftmodule.h
+#build cache/pfr/pfr.o : cc_freetype BlankProject/build/_deps/freetype-src/src/pfr/pfr.c | source/ftmodule/ftmodule.h
+build  cache/sfnt/sfnt.o : cc_freetype BlankProject/build/_deps/freetype-src/src/sfnt/sfnt.c | source/ftmodule/ftmodule.h
+build cache/src/truetype/truetype.o  : cc_freetype BlankProject/build/_deps/freetype-src/src/truetype/truetype.c | source/ftmodule/ftmodule.h
+#build cache/type1/type1.o  : cc_freetype BlankProject/build/_deps/freetype-src/src/type1/type1.c | source/ftmodule/ftmodule.h
+#build cache/type42/type42.o  : cc_freetype BlankProject/build/_deps/freetype-src/src/type42/type42.c | source/ftmodule/ftmodule.h
+#build cache/winfonts/winfnt.o  : cc_freetype BlankProject/build/_deps/freetype-src/src/winfonts/winfnt.c | source/ftmodule/ftmodule.h
 
 build BlankProject/build/_deps/freetype-src/src/gzip/ftgzip.c : phony flags/blank_project_configured
 build cache/gzip/ftgzip.o : cc_freetype BlankProject/build/_deps/freetype-src/src/gzip/ftgzip.c
@@ -98,9 +99,9 @@ build BlankProject/build/_deps/freetype-src/src/smooth/smooth.c : phony flags/bl
 build BlankProject/build/_deps/freetype-src/src/raster/raster.c : phony flags/blank_project_configured
 build BlankProject/build/_deps/freetype-src/src/sdf/sdf.c : phony flags/blank_project_configured
 
-build cache/smooth/smooth.o : cc_freetype BlankProject/build/_deps/freetype-src/src/smooth/smooth.c | ftmodule.h
-build cache/raster/raster.o : cc_freetype BlankProject/build/_deps/freetype-src/src/raster/raster.c | ftmodule.h
-build cache/sdf/sdf.o : cc_freetype BlankProject/build/_deps/freetype-src/src/sdf/sdf.c | ftmodule.h
+build cache/smooth/smooth.o : cc_freetype BlankProject/build/_deps/freetype-src/src/smooth/smooth.c | source/ftmodule/ftmodule.h
+build cache/raster/raster.o : cc_freetype BlankProject/build/_deps/freetype-src/src/raster/raster.c | source/ftmodule/ftmodule.h
+build cache/sdf/sdf.o : cc_freetype BlankProject/build/_deps/freetype-src/src/sdf/sdf.c | source/ftmodule/ftmodule.h
 
 rule link
   command = $cpp_compiler $cpp_standard $debug_flags_link $in $libs -mavx2 -o $out -Xlinker /subsystem:console
@@ -263,7 +264,6 @@ rule clone_alice_ui_editor
 
 build flags/alice_ui_editor_cloned : clone_alice_ui_editor
 
-build AliceUIEditor/project_description.hpp : phony flags/alice_ui_editor_cloned
 build AliceUIEditor/texture.cpp : phony flags/alice_ui_editor_cloned
 
 rule clone_glfw
@@ -397,13 +397,13 @@ build data.hpp | data_ids.hpp : use_dcon ./data.txt | DCON.exe
 build lua-export.hpp : use_dcon_lua ./data.txt | DCON_LUA.exe
 
 build cache/dcon_common.o : ccpp DataContainer/CommonIncludes/common_types.cpp | flags/dcon_cloned
-build cache/frustum.o : ccpp frustum.cpp | flags/glm_cloned
+build cache/frustum.o : ccpp source/frustum/frustum.cpp | flags/glm_cloned
 
-build cache/main.o : ccpp_game main.cpp | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp flags/blank_project_configured
+build cache/main.o : ccpp_game source/main.cpp | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp flags/blank_project_configured
 
-build cache/render_alice_ui.o : ccpp_game from_alice_editor_main.cpp | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp flags/blank_project_configured
+build cache/render_alice_ui.o : ccpp_game source/filesystem/from_alice_editor_main.cpp | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib flags/glm_cloned flags/imgui_cloned data.hpp lua-export.hpp flags/blank_project_configured
 
-build cache/sote_functions.o : ccpp_game sote_functions.cpp | data.hpp lua-export.hpp flags/blank_project_configured
+build cache/sote_functions.o : ccpp_game source/sote/sote_functions.cpp | data.hpp lua-export.hpp flags/blank_project_configured
 
 build BlankProject/src/gamestate/locale.cpp : phony flags/blank_project_cloned
 build cache/locale.o : ccpp_game BlankProject/src/gamestate/locale.cpp
@@ -431,7 +431,7 @@ build cache/gl_wrapper.o : ccpp_game BlankProject/src/graphics/opengl_wrapper.cp
 
 build cache/asvg.o : ccpp_game BlankProject/src/graphics/asvg.cpp
 build cache/texture.o : ccpp_game BlankProject/src/graphics/texture.cpp
-build cache/read_ui_files.o : ccpp_game project_file_writing.cpp | flags/blank_project_cloned
+build cache/read_ui_files.o : ccpp_game source/filesystem/project_file_writing.cpp | flags/blank_project_cloned
 build cache/fonts.o : ccpp_game BlankProject/src/text/fonts.cpp | data.hpp
 
 
