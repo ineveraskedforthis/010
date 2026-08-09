@@ -1,6 +1,6 @@
 #include "opengl_wrapper.hpp"
 #include "project_description.hpp"
-#include "BlankProject/src/gamestate/uitemplate.hpp"
+#include "uitemplate.hpp"
 #include "asvg.hpp"
 #include "simple_fs.hpp"
 #ifndef GLEW_STATIC
