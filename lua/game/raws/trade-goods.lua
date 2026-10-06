@@ -1,3 +1,4 @@
+local ffi = require("ffi")
 require "codegen-lua.trade_good"
 
 ---@class (exact) trade_good_id_data_blob_definition
@@ -28,7 +29,6 @@ function TradeGood:new(data)
 	if (data.is_service) then
 		TRADE_GOOD.set_is_service(id, data.is_service)
 	end
-	TRADE_GOOD.set_base_price(id, data.base_price)
 	TRADE_GOOD.set_decay(id, data.decay)
 
 	if RAWS_MANAGER.trade_goods_by_name[data.name] ~= nil then
@@ -36,6 +36,9 @@ function TradeGood:new(data)
 		print(msg)
 		error(msg)
 	end
+
+	local text_key = ffi.C.register_text(string.len(data.name), data.name)
+	TRADE_GOOD.set_name_text_index(id, text_key)
 
 	RAWS_MANAGER.trade_goods_by_name[data.name] = id
 

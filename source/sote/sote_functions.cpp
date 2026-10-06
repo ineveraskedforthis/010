@@ -239,6 +239,14 @@ uint32_t age_months(dcon::pop_id pop) {
 uint32_t age_years(dcon::pop_id pop) {
 	return age_ticks(pop) / WORLD_TICKS_PER_MONTH / 12;
 }
+
+age_description describe_age(dcon::pop_id pop) {
+	age_description result {};
+	result.years = age_years(pop);
+	result.months = age_months(pop) - result.years * 12;
+	return result;
+}
+
 // using age values
 float age_multiplier(dcon::pop_id pop) {
 	float age_multiplier = 1.f;

@@ -49,7 +49,7 @@
 #include "text_render.hpp"
 #include "window.hpp"
 #include "ui_containers.hpp"
-
+#include "sote_functions.hpp"
 
 uint64_t available_window_id = 1;
 
@@ -150,6 +150,10 @@ struct map_state {
 	mesh mesh {};
 };
 
+struct player_state {
+	dcon::player_id player;
+};
+
 constexpr inline uint32_t TEXT_KEY_IS_TEXTURE_PATH = 1;
 
 struct text_collection {
@@ -167,6 +171,7 @@ struct text_collection {
 struct state {
 	map_state map;
 	map_state sky;
+	player_state player_data;
 
 	int64_t date;
 
@@ -1137,6 +1142,39 @@ void lighting_settings(ImGuiIO& io, glm::vec3& light_direction, glm::vec3& ambie
 	ImGui::End();
 }
 
+
+void player_widget() {
+	ImGui::Begin("You");
+
+	auto player = world.player_data.player;
+	auto player_character = state.player_get_pop_from_player_control(player);
+
+	auto race = state.pop_get_race(player_character);
+	auto race_text_index = state.race_get_name_text_index(race);
+	ImGui::TextUnformatted(game_text.text.data() + game_text.word_start[race_text_index]);
+
+	auto birth_year = state.pop_get_birth_year(player_character);
+	auto birth_tick = state.pop_get_birth_tick(player_character);
+	auto age = describe_age(player_character);
+	ImGui::Text("Age: %u years and %u months", age.years, age.months);
+
+	auto temp = state.pop_get_culture(player_character);
+	ImGui::Text("Culture index: %u", temp.id.value);
+	ImGui::End();
+
+	ImGui::Begin("Inventory");
+
+	state.for_each_trade_good([&] (auto tgid) {
+		auto tg_name_index = state.trade_good_get_name_text_index(tgid);
+		std::string_view name { game_text.text.data() + game_text.word_start[tg_name_index] };
+		auto amount = state.pop_get_inventory(player_character, tgid);
+		ImGui::Text("%s : %u", name.data(), amount);
+	});
+
+	ImGui::End();
+}
+
+
 void race_explorer(const float TEXT_BASE_HEIGHT) {
 	ImGui::Begin("Races");
 
@@ -1333,6 +1371,8 @@ void race_explorer(const float TEXT_BASE_HEIGHT) {
 
 	ImGui::End();
 }
+
+
 
 static bool requested_map_update = false;
 
@@ -2518,6 +2558,10 @@ void load_world_from_images(
 	lua_pop(L, 1);
 	// [
 
+	world.player_data.player = state.create_player();
+	dcon::pop_id random_character = dcon::pop_id { dcon::pop_id::value_base_t (0) };
+	state.force_create_player_control(random_character, world.player_data.player);
+
 	images_loaded = true;
 }
 
@@ -3483,6 +3527,8 @@ int main(void) {
 
 		if (current_scene == game_scene::world_exploration) {
 			map_modes(map_mode_data, world_size, push_map_mode);
+			race_explorer(10.f);
+			player_widget();
 		}
 
 		if (current_scene == game_scene::loading_images) {

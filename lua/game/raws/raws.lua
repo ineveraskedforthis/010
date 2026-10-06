@@ -1,3 +1,4 @@
+require "codegen-lua.pop"
 print("Loading raws...")
 
 ---A special function that sets up "raws" on the world
@@ -42,7 +43,6 @@ return function(do_logging, load_save)
 	require "game.raws.use-case-loader".load()
 	require "game.raws.trade-goods-loader".load()
 
-
 	print("Loading races")
 	require "game.raws.race-loader".load()
 	require "game.raws.jobs-loader".load()
@@ -71,6 +71,9 @@ return function(do_logging, load_save)
 	require "game.raws.events-loader".load()
 
 	require "game.raws.production-chain-description._loader"()
+
+	-- RESIZE EVERYTHING TO PROPER SIZES:
+	POP.resize_inventory(TRADE_GOOD.size())
 
 	RECALCULATE_WEIGHTS_TABLE()
 	print('raws done')

@@ -1965,13 +1965,13 @@ object {
 		tag { scenario }
 	}
 	property{
-		name { base_price }
+		name { decay }
 		type { float }
 		tag { scenario }
 	}
 	property{
-		name { decay }
-		type { float }
+		name { name_text_index }
+		type { uint32_t }
 		tag { scenario }
 	}
 }
@@ -2905,5 +2905,29 @@ object {
 		name { requires_large_forest }
 		type { bitfield }
 		tag { scenario }
+	}
+}
+
+
+object {
+	name { player }
+	storage_type { contiguous }
+	size { 15 }
+}
+
+relationship {
+	name { player_control }
+	storage_type { contiguous }
+	size { 400 }
+	tag {scenario}
+	link {
+		object { pop }
+		name { pop }
+		type { unique }
+	}
+	link {
+		object { player }
+		name { player }
+		type { unique }
 	}
 }

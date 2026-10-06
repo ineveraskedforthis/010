@@ -70,3 +70,10 @@ extern "C" {
 	DCON_LUADLL_API bool is_dependent(dcon::pop_id child);
 	DCON_LUADLL_API bool is_dependent_of(dcon::pop_id child,dcon::pop_id parent);
 }
+
+
+struct age_description {
+	uint32_t years;
+	uint32_t months;
+};
+age_description describe_age(dcon::pop_id pop);
