@@ -1887,13 +1887,14 @@ struct textured_rectangle_shader {
 
 void render_characters(
 	textured_rectangle_shader shader,
-	game::simple_mesh square
+	game::simple_mesh square,
+	camera_data& camera
 ) {
 	glDisable(GL_DEPTH_TEST);
 	glUseProgram(shader.program);
 	glDisable(GL_CULL_FACE);
-	glUniformMatrix4fv(shader.view, 1, GL_FALSE, reinterpret_cast<float *>(&shader.view));
-	glUniformMatrix4fv(shader.projection, 1, GL_FALSE, reinterpret_cast<float *>(&shader.projection));
+	glUniformMatrix4fv(shader.view, 1, GL_FALSE, reinterpret_cast<float *>(&camera.view));
+	glUniformMatrix4fv(shader.projection, 1, GL_FALSE, reinterpret_cast<float *>(&camera.projection));
 	glUniform1i(shader.texture_unit, 0);
 	glBindVertexArray(square.vao);
 
@@ -1920,13 +1921,13 @@ void render_characters(
 			auto pop = state.pop_location_get_pop(pop_location);
 			render_portrait(state, game_text, pop, square.data.size(), shader.uv_map);
 		});
-		/*
+
 		glDrawArrays(
 			GL_TRIANGLES,
 			0,
 			square.data.size()
 		);
-		*/
+
 	});
 
 	assert_no_errors();
@@ -3024,7 +3025,7 @@ int main(void) {
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(1);
 
-    glewExperimental = GL_TRUE;
+	glewExperimental = GL_TRUE;
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -3050,7 +3051,7 @@ int main(void) {
 	// GLEW validation
 	GLenum err = glewInit();
 	if (GLEW_OK != err) {
-        if (err != GLEW_ERROR_NO_GL_VERSION)
+	if (err != GLEW_ERROR_NO_GL_VERSION)
 		glew_fail("glewInit: ", err);
 	}
 	fprintf(stdout, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
@@ -3138,11 +3139,19 @@ int main(void) {
 		create_shader(GL_FRAGMENT_SHADER, fragment_extra_basic_shader_source.c_str())
 	);
 
-	GLuint extra_basic_model_location = glGetUniformLocation(extra_basic_shader, "model");
-	GLuint extra_basic_view_location = glGetUniformLocation(extra_basic_shader, "view");
-	GLuint extra_basic_projection_location = glGetUniformLocation(extra_basic_shader, "projection");
-	GLuint extra_basic_texture_location = glGetUniformLocation(extra_basic_shader, "texture_sampler");
-	GLuint extra_basic_uv_mod_location = glGetUniformLocation(extra_basic_shader, "uv_mod");
+	// GLuint extra_basic_model_location = glGetUniformLocation(extra_basic_shader, "model");
+	// GLuint extra_basic_view_location = glGetUniformLocation(extra_basic_shader, "view");
+	// GLuint extra_basic_projection_location = glGetUniformLocation(extra_basic_shader, "projection");
+	// GLuint extra_basic_texture_location = glGetUniformLocation(extra_basic_shader, "texture_sampler");
+	// GLuint extra_basic_uv_mod_location = glGetUniformLocation(extra_basic_shader, "uv_mod");
+
+	textured_rectangle_shader square_shader {};
+	square_shader.model = glGetUniformLocation(extra_basic_shader, "model");
+	square_shader.program = extra_basic_shader;
+	square_shader.projection = glGetUniformLocation(extra_basic_shader, "projection");
+	square_shader.texture_unit = glGetUniformLocation(extra_basic_shader, "texture_sampler");
+	square_shader.uv_map = glGetUniformLocation(extra_basic_shader, "uv_mod");
+	square_shader.view = glGetUniformLocation(extra_basic_shader, "view");
 
 	// setting up a basic shader
 	std::string basic_shader_vertex_path = "./shaders/basic_shader_meshes.vert";
@@ -3547,6 +3556,13 @@ int main(void) {
 				width,
 				height
 			);
+
+			render_characters(
+				square_shader,
+				square,
+				camera_opengl_data
+			);
+
 			draw_scene(
 				ogl_state, font_collection,
 				width, height, probe, bg_key, current_settings.ui_scale
@@ -3574,6 +3590,8 @@ int main(void) {
 				}
 				clicks_buffer_left++;
 			}
+
+
 
 			if (clicked)
 				update_scene();

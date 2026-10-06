@@ -12,7 +12,7 @@ lunasvg_includes = -I./BlankProject/src/lunasvg -I./stb_image
 
 includes = -I./ -I./glfw/include -I./glew-cmake/include -I./imgui -I./glm $dcon_includes_common -I./LuaJIT/src -I./source/ftmodule -I./source/project_description -I./source/sote -I./source/stb_image -I./source/frustum -I./source/filesystem
 
-libs = -l./glfw/build/src/glfw3 -l./glew-cmake/build/lib/libglew32d -lUser32.lib -lShell32 -lGdi32 -lopengl32 -l./LuaJIT/src/lua51 -lOle32 -licu -lAdvapi32
+libs = -l./glfw/build/src/glfw3 -l./glew-cmake/build/lib/libglew32d.lib -lUser32.lib -lShell32 -lGdi32 -lopengl32 -l./LuaJIT/src/lua51 -lOle32 -licu -lAdvapi32
 
 rule ccpp_game
   command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -mavx2 -MD -MF $out.d $includes $blank_includes -c $in -o $out
@@ -130,7 +130,7 @@ rule clone_blank_project
   command = cmd /c "git clone https://github.com/ineveraskedforthis/BlankProject.git || (cd BlankProject && git pull origin && cd ..) && touch flags/blank_project_cloned"
 
 rule configure_blank_project
-  command = cmd /c "cd BlankProject && mkdir build || cd build && cmake .. -G Ninja && touch ../../flags/blank_project_configured"
+  command = cmd /c "cd BlankProject && mkdir build || cd build && cmake .. -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++ -G Ninja && touch ../../flags/blank_project_configured"
 
 rule clone_meson
   command = cmd /c "git clone https://github.com/mesonbuild/meson.git"
@@ -143,7 +143,7 @@ rule clone_meson
 harfbuzz_includes = -I./BlankProject/build/_deps/harfbuzz-src/src
 
 rule ccpp_harfbuzz
-  command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -D_CRT_SECURE_NO_WARNINGS -DHAVE_FREETYPE=TRUE -Wno-nontrivial-memcall -MD -MF $out.d $harfbuzz_includes $freetype_includes -c $in -o $out
+  command = $cpp_compiler $cpp_standard $optimisation_flag $debug_flags -D_CRT_SECURE_NO_WARNINGS -DHAVE_FREETYPE=TRUE -Wno-nontrivial-memcall -Wno-array-bounds -MD -MF $out.d $harfbuzz_includes $freetype_includes -c $in -o $out
   description = compile $out
   depfile = $out.d
 
@@ -201,6 +201,8 @@ build BlankProject/build/_deps/harfbuzz-src/src/hb-style.cc : phony flags/blank_
 build BlankProject/build/_deps/harfbuzz-src/src/hb-ucd.cc : phony flags/blank_project_configured
 build BlankProject/build/_deps/harfbuzz-src/src/hb-unicode.cc : phony flags/blank_project_configured
 build BlankProject/build/_deps/harfbuzz-src/src/hb-ft.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/hb-paint-bounded.cc : phony flags/blank_project_configured
+build BlankProject/build/_deps/harfbuzz-src/src/OT/Var/VARC/VARC.cc : phony flags/blank_project_configured
 
 
 build cache/hb-aat-layout.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-aat-layout.cc
@@ -256,6 +258,9 @@ build cache/hb-static.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/sr
 build cache/hb-style.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-style.cc
 build cache/hb-ucd.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ucd.cc
 build cache/hb-unicode.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-unicode.cc
+build cache/hb-paint-bounded.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-paint-bounded.cc
+build cache/hb-VARC.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/OT/Var/VARC/VARC.cc
+
 
 build cache/hb-ft.o : ccpp_harfbuzz BlankProject/build/_deps/harfbuzz-src/src/hb-ft.cc
 
@@ -270,7 +275,7 @@ rule clone_glfw
   command = cmd /c "git clone https://github.com/glfw/glfw.git && touch flags/glfw_cloned"
 
 rule configure_glfw
-  command = cmd /c "cd glfw && mkdir build & cd build && cmake .. -G "Ninja" -D CMAKE_C_COMPILER=clang -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch ../../flags/glfw_configured"
+  command = cmd /c "cd glfw && mkdir build & cd build && cmake .. -G "Ninja" -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++ -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch ../../flags/glfw_configured"
 
 rule build_glfw
   command = cmd /c "cd glfw/build && cmake --build ."
@@ -279,10 +284,10 @@ rule clone_glew
   command = cmd /c "git clone https://github.com/Perlmint/glew-cmake.git && touch flags/glew_cloned"
 
 rule configure_glew
-  command = cmd /c "cd glew-cmake && cd build && cmake ./cmake -G "Ninja" -D CMAKE_C_COMPILER=clang -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch ../../flags/glew_configured"
+  command = cmd /c "cd glew-cmake && cd build && cmake ./cmake -G "Ninja" -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++ -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded && touch ../../flags/glew_configured"
 
 rule build_glew
-  command = cmd /c "cd glew-cmake/build && cmake --build ."
+  command = cmd /c "cd glew-cmake/build && ninja glew_s"
 
 rule clone_glm
   command = cmd /c "git clone https://github.com/g-truc/glm.git && touch flags/glm_cloned"
@@ -296,7 +301,7 @@ build glfw/build/src/glfw3.lib : build_glfw flags/glfw_configured
 
 build flags/glew_cloned : clone_glew
 build flags/glew_configured : configure_glew flags/glew_cloned
-build glew-cmake/build/lib/glew32d.lib : build_glew flags/glew_configured
+build glew-cmake/build/lib/libglew32d.lib : build_glew flags/glew_configured
 
 build flags/glm_cloned : clone_glm
 
@@ -316,7 +321,7 @@ build cache/imgui_draw.o: ccpp imgui/imgui_draw.cpp | flags/imgui_cloned
 build cache/imgui_demo.o: ccpp imgui/imgui_demo.cpp | flags/imgui_cloned
 build cache/imgui_tables.o: ccpp imgui/imgui_tables.cpp | flags/imgui_cloned
 build cache/imgui_widgets.o: ccpp imgui/imgui_widgets.cpp | flags/imgui_cloned
-build cache/imgui_backend.o: ccpp imgui/backends/imgui_impl_glfw.cpp | flags/imgui_cloned
+build cache/imgui_backend.o: ccpp imgui/backends/imgui_impl_glfw.cpp | flags/imgui_cloned flags/glfw_cloned
 build cache/imgui_backend_gl.o: ccpp imgui/backends/imgui_impl_opengl3.cpp | flags/imgui_cloned
 build cache/imgui_stdlib.o: ccpp imgui/misc/cpp/imgui_stdlib.cpp | flags/imgui_cloned
 
@@ -342,7 +347,7 @@ build flags/blank_project_configured : configure_blank_project | flags/blank_pro
 
 build BlankProject/src/text/fonts.cpp : phony flags/blank_project_cloned | BlankProject/build/_deps/harfbuzz-src/src/hb.h BlankProject/build/_deps/freetype/include/freetype/freetype.h
 
-build BlankProject/src/graphics/asvg.cpp : phony flags/blank_project_cloned
+build BlankProject/src/graphics/asvg.cpp : phony flags/blank_project_cloned | flags/glew_configured
 
 build BlankProject/src/lunasvg/graphics.cpp : phony flags/blank_project_configured
 build BlankProject/src/lunasvg/lunasvg.cpp : phony flags/blank_project_configured
@@ -415,8 +420,8 @@ build cache/text.o : ccpp_game BlankProject/src/text/text.cpp
 build BlankProject/src/text/parsers.cpp : phony flags/blank_project_cloned
 build cache/parsers.o : ccpp_game BlankProject/src/text/parsers.cpp
 
-build BlankProject/src/window/window_win.cpp : phony flags/blank_project_cloned
-build cache/window_platform.o : ccpp_game BlankProject/src/window/window_win.cpp
+build BlankProject/src/window/window_win.cpp : phony flags/blank_project_cloned | flags/glew_cloned
+build cache/window_platform.o : ccpp_game BlankProject/src/window/window_win.cpp | flags/glew_cloned
 
 
 build BlankProject/src/gui/text_render.cpp : phony flags/blank_project_cloned
@@ -427,12 +432,13 @@ build cache/alice_ui.o : ccpp_game BlankProject/src/gui/alice_ui.cpp
 
 build BlankProject/src/graphics/texture.cpp : phony flags/blank_project_cloned
 build BlankProject/src/graphics/opengl_wrapper.cpp : phony flags/blank_project_cloned
-build cache/gl_wrapper.o : ccpp_game BlankProject/src/graphics/opengl_wrapper.cpp
 
-build cache/asvg.o : ccpp_game BlankProject/src/graphics/asvg.cpp
-build cache/texture.o : ccpp_game BlankProject/src/graphics/texture.cpp
-build cache/read_ui_files.o : ccpp_game source/filesystem/project_file_writing.cpp | flags/blank_project_cloned
-build cache/fonts.o : ccpp_game BlankProject/src/text/fonts.cpp | data.hpp
+build cache/blank_gl_wrapper.o : ccpp_game BlankProject/src/graphics/opengl_wrapper.cpp | flags/glew_cloned
+
+build cache/asvg.o : ccpp_game BlankProject/src/graphics/asvg.cpp flags/glew_configured
+build cache/texture.o : ccpp_game BlankProject/src/graphics/texture.cpp | flags/glew_configured
+build cache/read_ui_files.o : ccpp_game source/filesystem/project_file_writing.cpp | flags/blank_project_cloned flags/glew_configured
+build cache/fonts.o : ccpp_game BlankProject/src/text/fonts.cpp | data.hpp flags/glew_configured
 
 
-build 010.exe : link cache/gzip/ftgzip.o cache/sfnt/sfnt.o cache/psnames/psnames.o cache/text_render.o cache/text.o cache/alice_ui.o cache/parsers.o cache/locale.o cache/window_platform.o cache/gl_wrapper.o cache/ft-hb.o cache/hb-ft.o cache/ft-hb-ft.o cache/ftmm.o cache/smooth/smooth.o cache/raster/raster.o cache/sdf/sdf.o cache/src/truetype/truetype.o cache/ftsvg.o cache/ftinit.o cache/hb-aat-layout.o cache/hb-aat-map.o cache/hb-blob.o cache/hb-buffer-serialize.o cache/hb-buffer-verify.o cache/hb-buffer.o cache/hb-common.o cache/hb-draw.o cache/hb-paint.o cache/hb-paint-extents.o cache/hb-face.o cache/hb-face-builder.o cache/hb-fallback-shape.o cache/hb-font.o cache/hb-map.o cache/hb-number.o cache/hb-ot-cff1-table.o cache/cff/cff.o cache/hb-ot-cff2-table.o cache/hb-ot-color.o cache/hb-ot-face.o cache/hb-ot-font.o cache/hb-outline.o cache/hb-ot-layout.o cache/hb-ot-map.o cache/hb-ot-math.o cache/hb-ot-meta.o cache/hb-ot-metrics.o cache/hb-ot-name.o cache/hb-ot-shaper-arabic.o cache/hb-ot-shaper-default.o cache/hb-ot-shaper-hangul.o cache/hb-ot-shaper-hebrew.o cache/hb-ot-shaper-indic-table.o cache/hb-ot-shaper-indic.o cache/hb-ot-shaper-khmer.o cache/hb-ot-shaper-myanmar.o cache/hb-ot-shaper-syllabic.o cache/hb-ot-shaper-thai.o cache/hb-ot-shaper-use.o cache/hb-ot-shaper-vowel-constraints.o cache/hb-ot-shape-fallback.o cache/hb-ot-shape-normalize.o cache/hb-ot-shape.o cache/hb-ot-tag.o cache/hb-ot-var.o cache/hb-set.o cache/hb-shape-plan.o cache/hb-shape.o cache/hb-shaper.o cache/hb-static.o cache/hb-style.o cache/hb-ucd.o cache/hb-unicode.o cache/ftbitmap.o cache/ftsystem.o cache/ftdebug.o cache/ftbase.o cache/ftbbox.o cache/ftglyph.o cache/read_ui_files.o cache/texture.o cache/lunasvg/plutovg-surface.o cache/render_alice_ui.o cache/lunasvg/svgtextelement.o cache/lunasvg/lunasvg.o cache/lunasvg/graphics.o cache/lunasvg/svggeometryelement.o cache/lunasvg/svgelement.o cache/lunasvg/svgrenderstate.o cache/lunasvg/svgproperty.o cache/main.o cache/lunasvg/svgparser.o cache/lunasvg/svgpaintelement.o cache/lunasvg/svglayoutstate.o cache/lunasvg/plutovg-canvas.o cache/lunasvg/plutovg-blend.o cache/lunasvg/plutovg-rasterize.o cache/lunasvg/plutovg-path.o cache/lunasvg/plutovg-paint.o cache/lunasvg/plutovg-matrix.o cache/lunasvg/plutovg-ft-stroker.o cache/lunasvg/plutovg-ft-raster.o cache/lunasvg/plutovg-ft-math.o cache/simple_fs.o cache/templates_loading.o cache/asvg.o cache/frustum.o cache/dcon_common.o cache/lunasvg/plutovg-font.o cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o cache/imgui_draw.o cache/imgui.o cache/sote_functions.o cache/fonts.o | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib
+build 010.exe : link cache/gzip/ftgzip.o cache/sfnt/sfnt.o cache/psnames/psnames.o cache/text_render.o cache/text.o cache/alice_ui.o cache/parsers.o cache/locale.o cache/window_platform.o cache/blank_gl_wrapper.o cache/ft-hb.o cache/hb-ft.o cache/ft-hb-ft.o cache/ftmm.o cache/smooth/smooth.o cache/raster/raster.o cache/sdf/sdf.o cache/src/truetype/truetype.o cache/ftsvg.o cache/ftinit.o cache/hb-aat-layout.o cache/hb-aat-map.o cache/hb-blob.o cache/hb-buffer-serialize.o cache/hb-buffer-verify.o cache/hb-buffer.o cache/hb-common.o cache/hb-draw.o cache/hb-paint.o cache/hb-paint-extents.o cache/hb-face.o cache/hb-face-builder.o cache/hb-fallback-shape.o cache/hb-font.o cache/hb-map.o cache/hb-number.o cache/hb-ot-cff1-table.o cache/cff/cff.o cache/hb-ot-cff2-table.o cache/hb-ot-color.o cache/hb-ot-face.o cache/hb-ot-font.o cache/hb-VARC.o cache/hb-outline.o cache/hb-ot-layout.o cache/hb-ot-map.o cache/hb-ot-math.o cache/hb-ot-meta.o cache/hb-ot-metrics.o cache/hb-ot-name.o cache/hb-ot-shaper-arabic.o cache/hb-ot-shaper-default.o cache/hb-ot-shaper-hangul.o cache/hb-ot-shaper-hebrew.o cache/hb-ot-shaper-indic-table.o cache/hb-ot-shaper-indic.o cache/hb-ot-shaper-khmer.o cache/hb-ot-shaper-myanmar.o cache/hb-ot-shaper-syllabic.o cache/hb-paint-bounded.o cache/hb-ot-shaper-thai.o cache/hb-ot-shaper-use.o cache/hb-ot-shaper-vowel-constraints.o cache/hb-ot-shape-fallback.o cache/hb-ot-shape-normalize.o cache/hb-ot-shape.o cache/hb-ot-tag.o cache/hb-ot-var.o cache/hb-set.o cache/hb-shape-plan.o cache/hb-shape.o cache/hb-shaper.o cache/hb-static.o cache/hb-style.o cache/hb-ucd.o cache/hb-unicode.o cache/ftbitmap.o cache/ftsystem.o cache/ftdebug.o cache/ftbase.o cache/ftbbox.o cache/ftglyph.o cache/read_ui_files.o cache/texture.o cache/lunasvg/plutovg-surface.o cache/render_alice_ui.o cache/lunasvg/svgtextelement.o cache/lunasvg/lunasvg.o cache/lunasvg/graphics.o cache/lunasvg/svggeometryelement.o cache/lunasvg/svgelement.o cache/lunasvg/svgrenderstate.o cache/lunasvg/svgproperty.o cache/main.o cache/lunasvg/svgparser.o cache/lunasvg/svgpaintelement.o cache/lunasvg/svglayoutstate.o cache/lunasvg/plutovg-canvas.o cache/lunasvg/plutovg-blend.o cache/lunasvg/plutovg-rasterize.o cache/lunasvg/plutovg-path.o cache/lunasvg/plutovg-paint.o cache/lunasvg/plutovg-matrix.o cache/lunasvg/plutovg-ft-stroker.o cache/lunasvg/plutovg-ft-raster.o cache/lunasvg/plutovg-ft-math.o cache/simple_fs.o cache/templates_loading.o cache/asvg.o cache/frustum.o cache/dcon_common.o cache/lunasvg/plutovg-font.o cache/imgui_stdlib.o cache/imgui_backend_gl.o cache/imgui_backend.o cache/imgui_widgets.o cache/imgui_tables.o cache/imgui_demo.o cache/imgui_draw.o cache/imgui.o cache/sote_functions.o cache/fonts.o | glfw/build/src/glfw3.lib glew-cmake/build/lib/glew32d.lib
