@@ -329,7 +329,7 @@ float job_efficiency(dcon::pop_id pop, uint8_t jobtype) {
 bool pop_same_location(dcon::pop_id a, dcon::pop_id b) {
 	auto a_location = state.pop_location_get_location(state.pop_get_pop_location_as_pop(a));
 	auto b_location = state.pop_location_get_location(state.pop_get_pop_location_as_pop(a));
-	if (state.settlement_is_valid(a_location) && a_location == b_location) {
+	if (state.location_is_valid(a_location) && a_location == b_location) {
 		return true;
 	} // if not in same settlement, check if in same party
 	auto a_warband = state.warband_unit_get_warband(state.pop_get_warband_unit_as_unit(a));
@@ -809,57 +809,18 @@ void pops_update_stats() {
 	});
 }
 
-auto WORKERS_SHARE = 0.01f;
-// estates can interact only with local pops
-// can do in parallel over settlements
-void estates_pay() {
-	state.for_each_estate([&](auto estate) {
-		auto savings = state.estate_get_savings(estate);
-
-		auto wage_budget = savings * WORKERS_SHARE;
-		state.estate_get_balance_last_tick(estate) -= wage_budget;
-
-		float total_work_time = 0.f;
-		state.estate_for_each_building_estate(estate, [&](auto building_location) {
-			auto building = state.building_estate_get_building(building_location);
-			auto worker = state.building_get_worker_from_employment(building);
-			if (worker) {
-				total_work_time += state.pop_get_work_ratio(worker);
-			}
-		});
-
-		if (total_work_time < 0.01f) {
-			return;
-		}
-
-		state.estate_for_each_building_estate(estate, [&](auto building_location) {
-			auto building = state.building_estate_get_building(building_location);
-			auto worker = state.building_get_worker_from_employment(building);
-			if (worker) {
-				auto work_ratio = state.pop_get_work_ratio(worker);
-				auto share = wage_budget * work_ratio / total_work_time;
-				state.pop_get_pending_economy_income(worker) += share;
-				state.building_set_worker_income_from_employment(building, share);
-			}
-		});
-	});
-}
-
 // TODO: rewrite more stuff to parallel loops, as there are a lot of opportunities for parallelisation
 void update_economy() {
 	uint32_t trade_goods_count = state.trade_good_size();
 
-	state.execute_serial_over_estate([&](auto estates) {
-		state.estate_set_balance_last_tick(estates, 0.f);
-	});
 	concurrency::parallel_for(uint32_t(0), state.trade_good_size(), [&](auto trade_good_raw_id) {
 		dcon::trade_good_id trade_good { dcon::trade_good_id::value_base_t(trade_good_raw_id) };
 		if (!state.trade_good_is_valid(trade_good)) return;
-		state.execute_serial_over_estate([&](auto estates) {
-			state.estate_set_inventory_demanded_last_tick(estates, trade_good, 0.f);
-			state.estate_set_inventory_sold_last_tick(estates, trade_good, 0.f);
-			state.estate_set_inventory_bought_last_tick(estates, trade_good, 0.f);
-		});
+		// state.execute_serial_over_estate([&](auto estates) {
+		// 	state.estate_set_inventory_demanded_last_tick(estates, trade_good, 0.f);
+		// 	state.estate_set_inventory_sold_last_tick(estates, trade_good, 0.f);
+		// 	state.estate_set_inventory_bought_last_tick(estates, trade_good, 0.f);
+		// });
 	});
 
 	// update pops self value
@@ -878,27 +839,18 @@ void update_economy() {
 			auto inventory = state.pop_get_inventory(ids, trade_good);
 			state.pop_set_inventory(ids, trade_good, inventory * inventory_decay);
 		});
-		state.execute_serial_over_estate([&](auto ids){
-			auto inventory = state.estate_get_inventory(ids, trade_good);
-			state.estate_set_inventory(ids, trade_good, inventory * inventory_decay);
-		});
 	});
 
 	// decay inventories in settlements and realms:
 	concurrency::parallel_for(uint32_t(0), trade_goods_count, [&](auto good_id){
 		dcon::trade_good_id trade_good{ dcon::trade_good_id::value_base_t(good_id) };
 		float inventory_decay = state.trade_good_get_decay(trade_good);
-		state.execute_serial_over_settlement([&](auto ids){
-			auto stockpiles = state.settlement_get_local_storage(ids, trade_good);
-			state.settlement_set_local_storage(ids, trade_good, stockpiles * inventory_decay);
-		});
-		state.execute_serial_over_realm([&](auto ids){
-			auto stockpiles = state.realm_get_resources(ids, trade_good);
-			state.realm_set_resources(ids, trade_good, stockpiles * inventory_decay);
+		state.execute_serial_over_location([&](auto ids){
+			auto stockpiles = state.location_get_local_storage(ids, trade_good);
+			state.location_set_local_storage(ids, trade_good, stockpiles * inventory_decay);
 		});
 	});
 
 	pops_consume();
-	estates_pay();
 	pops_update_stats();
 }

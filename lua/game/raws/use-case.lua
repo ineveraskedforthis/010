@@ -1,4 +1,5 @@
 require "codegen-lua.use_case"
+local ffi = require "ffi"
 
 ---@class UseCase
 local UseCase = {}
@@ -25,6 +26,9 @@ function UseCase:new(data)
 	USE_CASE.set_r(id, data.r)
 	USE_CASE.set_g(id, data.g)
 	USE_CASE.set_b(id, data.b)
+
+	local text_key = ffi.C.register_text(string.len(data.name), data.name)
+	USE_CASE.set_name_text_index(id, text_key)
 
 	if RAWS_MANAGER.use_cases_by_name[data.name] ~= nil then
 		local msg = "Failed to load a trade good use case (" .. tostring(data.name) .. ")"

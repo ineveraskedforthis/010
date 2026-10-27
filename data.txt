@@ -879,7 +879,7 @@ object {
 	}
 }
 object {
-	name { settlement }
+	name { location }
 	storage_type { erasable }
 	size { 20000 }
 	tag {scenario}
@@ -901,6 +901,11 @@ object {
 	property{
 		name { local_storage }
 		type { array{trade_good_id}{float} }
+		tag { scenario }
+	}
+	property{
+		name { treasury }
+		type { float }
 		tag { scenario }
 	}
 }
@@ -1062,7 +1067,7 @@ object {
 	}
 	property{
 		name { capitol }
-		type { settlement_id }
+		type { location_id }
 		tag { scenario }
 	}
 	property{
@@ -1260,50 +1265,14 @@ object {
 		tag { scenario }
 	}
 }
-object {
-	name { estate }
-	storage_type { erasable }
-	size { 300000 }
-	tag {scenario}
-	property{
-		name { savings }
-		type { float }
-		tag { scenario }
-	}
-	property{
-		name { inventory }
-		type { array{trade_good_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { inventory_sold_last_tick }
-		type { array{trade_good_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { inventory_bought_last_tick }
-		type { array{trade_good_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { inventory_demanded_last_tick }
-		type { array{trade_good_id}{float} }
-		tag { scenario }
-	}
-	property{
-		name { balance_last_tick }
-		type { float }
-		tag { scenario }
-	}
-}
 relationship {
 	name { ownership }
 	storage_type { erasable }
 	size { 300000 }
 	tag {scenario}
 	link {
-		object { estate }
-		name { estate }
+		object { location }
+		name { location }
 		type { unique }
 	}
 	link {
@@ -1345,30 +1314,13 @@ relationship {
 	}
 }
 relationship {
-	name { estate_location }
-	storage_type { erasable }
-	size { 300000 }
-	tag {scenario}
-	link {
-		object { settlement }
-		name { settlement }
-		type { many }
-		index_storage{array}
-	}
-	link {
-		object { estate }
-		name { estate }
-		type { unique }
-	}
-}
-relationship {
-	name { building_estate }
+	name { building_location }
 	storage_type { erasable }
 	size { 600000 }
 	tag {scenario}
 	link {
-		object { estate }
-		name { estate }
+		object { location }
+		name { location }
 		type { many }
 		index_storage{array}
 	}
@@ -1471,7 +1423,7 @@ relationship {
 	size { 300000 }
 	tag {scenario}
 	link {
-		object { settlement }
+		object { location }
 		name { home }
 		type { many }
 		index_storage{array}
@@ -1488,7 +1440,7 @@ relationship {
 	size { 300000 }
 	tag {scenario}
 	link {
-		object { settlement }
+		object { location }
 		name { location }
 		type { many }
 		index_storage{array}
@@ -1500,13 +1452,13 @@ relationship {
 	}
 }
 relationship {
-	name { settlement_tile }
+	name { location_tile }
 	storage_type { erasable }
 	size { 1500000 }
 	tag {scenario}
 	link {
-		object { settlement }
-		name { settlement }
+		object { location }
+		name { location }
 		type { unique }
 		index_storage{array}
 	}
@@ -1517,18 +1469,18 @@ relationship {
 	}
 }
 relationship {
-	name { settlement_neighborhood }
+	name { location_neighborhood }
 	storage_type { erasable }
 	size { 250000 }
 	tag {scenario}
 	link {
-		object { settlement }
+		object { location }
 		name { origin }
 		type { many }
 		index_storage{array}
 	}
 	link {
-		object { settlement }
+		object { location }
 		name { target }
 		type { many }
 		index_storage{array}
@@ -1723,13 +1675,13 @@ relationship {
 	}
 }
 relationship {
-	name { realm_settlements }
+	name { realm_locations }
 	storage_type { erasable }
 	size { 30000 }
 	tag {scenario}
 	link {
-		object { settlement }
-		name { settlement }
+		object { location }
+		name { location }
 		type { unique }
 	}
 	link {
@@ -2000,6 +1952,11 @@ object {
 		type { float }
 		tag { scenario }
 	}
+	property{
+		name { name_text_index }
+		type { uint32_t }
+		tag { scenario }
+	}
 }
 relationship {
 	name { use_weight }
@@ -2229,6 +2186,11 @@ object {
 		type { float }
 		tag { scenario }
 	}
+	property {
+		name { name_text_index }
+		type { uint32_t }
+		tag { scenario }
+	}
 }
 object {
 	name { bedrock }
@@ -2448,6 +2410,13 @@ object {
 	storage_type { contiguous }
 	size { 250 }
 	tag {scenario}
+
+	property {
+		name { name_text_index }
+		type { uint32_t }
+		tag { scenario }
+	}
+
 	property{
 		name { r }
 		type { float }
@@ -2600,6 +2569,11 @@ object {
 	property{
 		name { b }
 		type { float }
+		tag { scenario }
+	}
+	property {
+		name { name_text_index }
+		type { uint32_t }
 		tag { scenario }
 	}
 	property{
@@ -2913,6 +2887,7 @@ object {
 	name { player }
 	storage_type { contiguous }
 	size { 15 }
+	tag {scenario}
 }
 
 relationship {

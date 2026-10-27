@@ -173,6 +173,8 @@ struct state {
 	map_state sky;
 	player_state player_data;
 
+	dcon::activity_id selected_activity;
+
 	int64_t date;
 
 	std::default_random_engine rng {};
@@ -1168,10 +1170,101 @@ void player_widget() {
 		auto tg_name_index = state.trade_good_get_name_text_index(tgid);
 		std::string_view name { game_text.text.data() + game_text.word_start[tg_name_index] };
 		auto amount = state.pop_get_inventory(player_character, tgid);
-		ImGui::Text("%s : %u", name.data(), amount);
+		ImGui::Text("%s : %f", name.data(), amount);
 	});
 
 	ImGui::End();
+
+	ImGui::Begin("Local land");
+
+	auto location = state.pop_get_location_from_pop_location(player_character);
+
+	// all active pops should have location
+	assert(location);
+
+	auto tile = state.location_get_tile_from_location_tile(location);
+	auto biome = state.tile_get_biome(tile);
+	{
+		auto biome_name_index = state.biome_get_name_text_index(biome);
+		std::string_view name { game_text.text.data() + game_text.word_start[biome_name_index] };
+		ImGui::Text("Local biome : %s", name.data());
+	}
+
+	ImGui::End();
+
+
+
+	ImGui::Begin("Technology");
+
+	state.for_each_technology([&](auto tech_id ) {
+		auto present = state.pop_get_technologies_present(player_character, tech_id);
+		auto tech_name_index = state.technology_get_name_text_index(tech_id);
+		std::string_view name { game_text.text.data() + game_text.word_start[tech_name_index] };
+		if (present) {
+			ImGui::Text("%s : Known", name.data());
+		} else {
+			ImGui::Text("%s : Unknown", name.data());
+		}
+	});
+
+	ImGui::End();
+
+
+	ImGui::Begin("Activities list");
+
+	state.for_each_activity([&](dcon::activity_id activity) {
+		auto active = state.pop_get_potential_activity(player_character, activity);
+		if (!active) {
+			return;
+		}
+		auto activity_name_index = state.activity_get_name_text_index(activity);
+		std::string_view name { game_text.text.data() + game_text.word_start[activity_name_index] };
+		// auto activity_name = state.activity_get_name();
+		if (ImGui::Button(name.data())) {
+			world.selected_activity = activity;
+		}
+	});
+
+	ImGui::End();
+
+	if (world.selected_activity) {
+		auto activity_name_index = state.activity_get_name_text_index(world.selected_activity);
+		std::string_view name { game_text.text.data() + game_text.word_start[activity_name_index] };
+
+		ImGui::Begin("Activity details");
+
+		ImGui::Text("Selected: %s", name.data());
+
+		ImGui::Text("Inputs:");
+		for (int i = 0; i < 30; i++) {
+			auto input_use_case = state.activity_get_inputs(world.selected_activity, i);
+			if (!input_use_case) break;
+			auto amount = state.activity_get_inputs_amount(world.selected_activity, i);
+
+			auto use_case_name_index = state.use_case_get_name_text_index(input_use_case);
+			std::string_view use_case_name { game_text.text.data() + game_text.word_start[use_case_name_index] };
+			auto consumption = state.use_case_get_good_consumption(input_use_case);
+			if (consumption == 1.f) {
+				ImGui::Text("%f of %s", amount, use_case_name.data());
+			} else {
+				ImGui::Text("%f of %s with %f probability", amount, use_case_name.data(), consumption);
+			}
+		}
+
+		ImGui::Text("Outputs:");
+		for (int i = 0; i < 30; i++) {
+			auto output = state.activity_get_outputs(world.selected_activity, i);
+			if (!output) break;
+			auto amount = state.activity_get_outputs_amount(world.selected_activity, i);
+
+			auto trade_good_name_index = state.trade_good_get_name_text_index(output);
+			std::string_view output_name { game_text.text.data() + game_text.word_start[trade_good_name_index] };
+
+			ImGui::Text("%f of %s", amount, output_name.data());
+		}
+
+		ImGui::End();
+	}
 }
 
 
@@ -1938,8 +2031,8 @@ void render_characters(
 	glUniform1i(shader.texture_unit, 0);
 	glBindVertexArray(square.vao);
 
-	state.for_each_settlement([&](auto settlement){
-		auto tile = state.settlement_get_tile_from_settlement_tile(settlement);
+	state.for_each_location([&](auto settlement){
+		auto tile = state.location_get_tile_from_location_tile(settlement);
 		auto x = state.tile_get_x(tile);
 		auto y = state.tile_get_y(tile);
 		auto z = state.tile_get_z(tile);
@@ -1957,7 +2050,7 @@ void render_characters(
 		model_square = glm::scale(model_square, {scale_r * 1.001f, 0.0015f, 0.0015f});
 		glUniformMatrix4fv(shader.model, 1, GL_FALSE, reinterpret_cast<float *>(&model_square));
 
-		state.settlement_for_each_pop_location(settlement, [&](dcon::pop_location_id pop_location){
+		state.location_for_each_pop_location(settlement, [&](dcon::pop_location_id pop_location){
 			auto pop = state.pop_location_get_pop(pop_location);
 			render_portrait(state, game_text, pop, square.data.size(), shader.uv_map);
 		});
@@ -1967,7 +2060,6 @@ void render_characters(
 			0,
 			square.data.size()
 		);
-
 	});
 
 	assert_no_errors();
@@ -2041,6 +2133,11 @@ void load_world_from_images(
 	// [traceback, sote
 
 	if (result) exit(1);
+
+	// we can set correct sizes now
+	state.pop_resize_technologies_present(state.technology_size());
+	state.pop_resize_technologies_researchable(state.technology_size());
+	state.pop_resize_potential_activity(state.activity_size());
 
 	lua_pop(L, 1);
 	// [traceback
@@ -2515,7 +2612,7 @@ void load_world_from_images(
 		state.pop_resize_dna(20);
 		state.for_each_race([&](dcon::race_id race){
 			state.for_each_tile([&](dcon::tile_id tile){
-				auto settlement = state.tile_get_settlement_from_settlement_tile(tile);
+				auto settlement = state.tile_get_location_from_location_tile(tile);
 				if (settlement) return;
 				if (!state.tile_get_is_land(tile)) return;
 
@@ -2541,8 +2638,8 @@ void load_world_from_images(
 
 				if (world.uniform(world.rng) > 0.0001f) return;
 
-				auto s = state.create_settlement();
-				state.force_create_settlement_tile(s, tile);
+				auto s = state.create_location();
+				state.force_create_location_tile(s, tile);
 
 				auto leader = state.create_pop();
 				state.force_create_pop_location(s, leader);
@@ -3558,6 +3655,8 @@ int main(void) {
 		double mouse_y;
 		glfwGetCursorPos(window, &mouse_x, &mouse_y);
 
+		bool over_ui = false;
+
 		probe.x = mouse_x;
 		probe.y = mouse_y;
 		probe.last_frame_control_id = probe.control_id;
@@ -3565,6 +3664,7 @@ int main(void) {
 		if (io.WantCaptureMouse) {
 			probe.last_frame_control_id = -1;
 			probe.last_frame_window_id = -1;
+			over_ui = true;
 		}
 		probe.control_id = -1;
 		probe.window_id = -1;
@@ -3642,6 +3742,11 @@ int main(void) {
 			if (clicked)
 				update_scene();
 		}
+
+		if (probe.control_id != -1 || probe.window_id != -1) {
+			over_ui = true;
+		}
+
 
 		// conclusion
 

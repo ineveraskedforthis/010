@@ -1,3 +1,4 @@
+local ffi = require "ffi"
 require "codegen-lua.technology_unlock"
 require "codegen-lua.technology"
 
@@ -15,9 +16,9 @@ local tabb = require "engine.table"
 ---@field required_race race_id[]
 ---@field required_resource resource_id[]
 ---@field associated_job job_id The job that is needed to perform this research. Without it, the research odds will be significantly lower. We'll be using this to make technology implicitly tied to player decisions
----@field throughput_boosts table<production_method_id, number>
----@field input_efficiency_boosts table<production_method_id, number>
----@field output_efficiency_boosts table<production_method_id, number>
+---@field throughput_boosts table<activity_id, number>
+---@field input_efficiency_boosts table<activity_id, number>
+---@field output_efficiency_boosts table<activity_id, number>
 
 ---@class technology_blob_extended : technology_id_data_blob_definition
 ---@field unlocked_by technology_id[]
@@ -36,6 +37,10 @@ function Technology:new(data)
 
 	local id = TECHNOLOGY.create()
 	-- TECHNOLOGY.set_name(id, data.name)
+
+	local text_key = ffi.C.register_text(string.len(data.name), data.name)
+	TECHNOLOGY.set_name_text_index(id, text_key)
+
 	-- TECHNOLOGY.set_icon(id, data.icon)
 	-- TECHNOLOGY.set_description(id, data.description)
 	TECHNOLOGY.set_r(id, data.r)

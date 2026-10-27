@@ -1,3 +1,4 @@
+local ffi = require ("ffi")
 require "codegen-lua.biome"
 
 local Biome = {}
@@ -50,6 +51,10 @@ Biome.__index = Biome
 ---@return biome_id
 function Biome:new(data)
 	local id = BIOME.create()
+
+	local text_key = ffi.C.register_text(string.len(data.name), data.name)
+	BIOME.set_name_text_index(id, text_key)
+
 	BIOME.set_aquatic(id, false)
 	BIOME.set_marsh(id, false)
 	BIOME.set_icy(id, false)

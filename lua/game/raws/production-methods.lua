@@ -1,4 +1,6 @@
 require "codegen-lua.activity"
+local ffi = require "ffi"
+
 local dbm = require "game.economy.diet-breadth-model"
 local tile_utils = require "game.entities.tile"
 
@@ -45,6 +47,10 @@ function ProductionMethod:new(data)
 	end
 
 	local id = ACTIVITY.create()
+
+	local text_key = ffi.C.register_text(string.len(data.name), data.name)
+	ACTIVITY.set_name_text_index(id, text_key)
+
 	ACTIVITY.set_foraging(id, false)
 	ACTIVITY.set_hydration(id, false)
 	ACTIVITY.set_nature_yield_dependence(id, 0)
